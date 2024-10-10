@@ -21,7 +21,7 @@ class SP(nn.Cell):
 
     def __init__(self, k=3, s=1):
         super(SP, self).__init__()
-        self.m = MaxPool2d(kernel_size=k, stride=s, padding=k // 2)
+        self.m = nn.MaxPool2d(kernel_size=k, stride=s, pad_mode='pad', padding=k // 2)
 
     def construct(self, x):
         return self.m(x)

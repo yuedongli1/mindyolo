@@ -2,6 +2,7 @@ from mindspore import nn, ops
 
 from .common import Identity
 from .utils import autopad
+from .pool import SP
 
 
 class ConvNormAct(nn.Cell):
@@ -49,7 +50,7 @@ class ConvNormAct(nn.Cell):
             self.bn = nn.SyncBatchNorm(c2, momentum=momentum, eps=eps)
         else:
             self.bn = nn.BatchNorm2d(c2, momentum=momentum, eps=eps)
-        self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Cell) else Identity)
+        self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Cell) else Identity())
 
     def construct(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -96,7 +97,7 @@ class RepConv(nn.Cell):
 
         padding_11 = autopad(k, p) - k // 2
 
-        self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Cell) else Identity)
+        self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Cell) else Identity())
 
         if sync_bn:
             BatchNorm = nn.SyncBatchNorm
@@ -166,3 +167,84 @@ class DWConvNormAct(nn.Cell):
 
     def construct(self, x):
         return self.pconv(self.dconv(x))
+
+
+class AConv(nn.Cell):
+    def __init__(self, c1, c2):  # ch_in, ch_out, shortcut, kernels, groups, expand
+        super(AConv, self).__init__()
+        self.avg_pool2d = nn.AvgPool2d(2)
+        self.cv1 = ConvNormAct(c1, c2, 3, 2, 1)
+
+    def construct(self, x):
+        x = self.avg_pool2d(x)
+        return self.cv1(x)
+
+
+class ELAN1(nn.Cell):
+
+    def __init__(self, c1, c2, c3, c4):  # ch_in, ch_out, number, shortcut, groups, expansion
+        super(ELAN1, self).__init__()
+        self.c = c3//2
+        self.cv1 = ConvNormAct(c1, c3, 1, 1)
+        self.cv2 = ConvNormAct(c3//2, c4, 3, 1)
+        self.cv3 = ConvNormAct(c4, c4, 3, 1)
+        self.cv4 = ConvNormAct(c3+(2*c4), c2, 1, 1)
+
+    def construct(self, x):
+        y = ()
+        x = self.cv1(x)
+        _c = x.shape[1] // 2
+        x_tuple = ops.split(x, axis=1, split_size_or_sections=_c)
+        y += x_tuple
+        for m in [self.cv2, self.cv3]:
+            out = m(y[-1])
+            y += (out,)
+        return self.cv4(ops.cat(y, 1))
+
+
+class SPPELAN(nn.Cell):
+    # spp-elan
+    def __init__(self, c1, c2, c3):  # ch_in, ch_out, number, shortcut, groups, expansion
+        super(SPPELAN, self).__init__()
+        self.c = c3
+        self.cv1 = ConvNormAct(c1, c3, 1, 1)
+        self.cv2 = SP(5)
+        self.cv3 = SP(5)
+        self.cv4 = SP(5)
+        self.cv5 = ConvNormAct(4*c3, c2, 1, 1)
+
+    def construct(self, x):
+        y = (self.cv1(x),)
+        for m in [self.cv2, self.cv3, self.cv4]:
+            out = m(y[-1])
+            y += (out,)
+        return self.cv5(ops.cat(y, 1))
+
+
+class CBLinear(nn.Cell):
+    def __init__(self, c1, c2s, k=1, s=1, p=None, g=1):  # ch_in, ch_outs, kernel, stride, padding, groups
+        super(CBLinear, self).__init__()
+        self.c2s = c2s
+        self.conv = nn.Conv2d(c1, sum(c2s), k, s, autopad(k, p), groups=g, bias=True)
+
+    def construct(self, x):
+        outs = self.conv(x).split(self.c2s, axis=1)
+        return outs
+
+
+class ADown(nn.Cell):
+    def __init__(self, c1, c2):  # ch_in, ch_out, shortcut, kernels, groups, expand
+        super(ADown, self).__init__()
+        self.c = c2 // 2
+        self.avg_pool2d = nn.AvgPool2d(2)
+        self.max_pool2d = nn.MaxPool2d(3, 2, pad_mode='pad', padding=1)
+        self.cv1 = ConvNormAct(c1 // 2, self.c, 3, 2, 1)
+        self.cv2 = ConvNormAct(c1 // 2, self.c, 1, 1, 0)
+
+    def construct(self, x):
+        x = self.avg_pool2d(x)
+        x1, x2 = x.chunk(2, 1)
+        x1 = self.cv1(x1)
+        x2 = self.max_pool2d(x)
+        x2 = self.cv2(x2)
+        return ops.cat((x1, x2), 1)

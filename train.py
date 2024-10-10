@@ -90,6 +90,7 @@ def train(args):
     # Set Default
     set_seed(args.seed)
     set_default(args)
+    ms.set_context(max_call_depth=3000)
     main_device = args.rank % args.rank_size == 0
 
     logger.info(f"parse_args:\n{args}")
@@ -190,7 +191,7 @@ def train(args):
 
     # Scale loss hyps
     args.loss.cls *= args.data.nc / 80
-    args.loss.obj *= (args.img_size / 640) ** 2
+    # args.loss.obj *= (args.img_size / 640) ** 2
     
     # Create Loss
     loss_fn = create_loss(
