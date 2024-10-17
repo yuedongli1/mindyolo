@@ -38,6 +38,7 @@ __all__ = [
     "ELAN1",
     "SPPELAN",
     "CBLinear",
+    "CBFuse",
     "ADown",
     "RepNBottleneck",
     "RepNCSP",

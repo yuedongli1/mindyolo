@@ -232,6 +232,18 @@ class CBLinear(nn.Cell):
         return outs
 
 
+class CBFuse(nn.Cell):
+    def __init__(self, idx):
+        super(CBFuse, self).__init__()
+        self.idx = idx
+
+    def construct(self, xs):
+        target_size = xs[-1].shape[2:]
+        res = [ops.interpolate(x[self.idx[i]], size=target_size, mode='nearest') for i, x in enumerate(xs[:-1])]
+        out = ops.sum(ops.stack(res + xs[-1:]), dim=0)
+        return out
+
+
 class ADown(nn.Cell):
     def __init__(self, c1, c2):  # ch_in, ch_out, shortcut, kernels, groups, expand
         super(ADown, self).__init__()
