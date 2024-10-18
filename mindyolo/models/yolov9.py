@@ -39,10 +39,12 @@ class YOLOv9(nn.Cell):
         m = self.model.model[-1]
         if isinstance(m, YOLOv9Head):
             m.initialize_biases()
+            m.dfl.initialize_conv_weight()
+            m.dfl2.initialize_conv_weight()
 
 
 @register_model
 def yolov9(cfg, in_channels=3, num_classes=None, **kwargs) -> YOLOv9:
-    """Get yolov8 model."""
+    """Get yolov9 model."""
     model = YOLOv9(cfg=cfg, in_channels=in_channels, num_classes=num_classes, **kwargs)
     return model
