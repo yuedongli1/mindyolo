@@ -104,7 +104,7 @@ class RepConv(nn.Cell):
         else:
             BatchNorm = nn.BatchNorm2d
 
-        self.rbr_identity = BatchNorm(num_features=c1, momentum=(1 - 0.03), eps=1e-3) if c2 == c1 and s == 1 else None
+        self.rbr_identity = None
         self.rbr_dense = nn.SequentialCell(
             [
                 nn.Conv2d(c1, c2, k, s, pad_mode="pad", padding=autopad(k, p), group=g, has_bias=False),
@@ -170,10 +170,10 @@ class DWConvNormAct(nn.Cell):
 
 
 class AConv(nn.Cell):
-    def __init__(self, c1, c2):  # ch_in, ch_out, shortcut, kernels, groups, expand
+    def __init__(self, c1, c2, sync_bn=False):  # ch_in, ch_out, shortcut, kernels, groups, expand
         super(AConv, self).__init__()
         self.avg_pool2d = nn.AvgPool2d(2)
-        self.cv1 = ConvNormAct(c1, c2, 3, 2, 1)
+        self.cv1 = ConvNormAct(c1, c2, 3, 2, 1, sync_bn=sync_bn)
 
     def construct(self, x):
         x = self.avg_pool2d(x)
@@ -182,13 +182,13 @@ class AConv(nn.Cell):
 
 class ELAN1(nn.Cell):
 
-    def __init__(self, c1, c2, c3, c4):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(self, c1, c2, c3, c4, sync_bn=False):  # ch_in, ch_out, number, shortcut, groups, expansion
         super(ELAN1, self).__init__()
         self.c = c3//2
-        self.cv1 = ConvNormAct(c1, c3, 1, 1)
-        self.cv2 = ConvNormAct(c3//2, c4, 3, 1)
-        self.cv3 = ConvNormAct(c4, c4, 3, 1)
-        self.cv4 = ConvNormAct(c3+(2*c4), c2, 1, 1)
+        self.cv1 = ConvNormAct(c1, c3, 1, 1, sync_bn=sync_bn)
+        self.cv2 = ConvNormAct(c3//2, c4, 3, 1, sync_bn=sync_bn)
+        self.cv3 = ConvNormAct(c4, c4, 3, 1, sync_bn=sync_bn)
+        self.cv4 = ConvNormAct(c3+(2*c4), c2, 1, 1, sync_bn=sync_bn)
 
     def construct(self, x):
         y = ()
@@ -204,14 +204,14 @@ class ELAN1(nn.Cell):
 
 class SPPELAN(nn.Cell):
     # spp-elan
-    def __init__(self, c1, c2, c3):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(self, c1, c2, c3, sync_bn=False):  # ch_in, ch_out, number, shortcut, groups, expansion
         super(SPPELAN, self).__init__()
         self.c = c3
-        self.cv1 = ConvNormAct(c1, c3, 1, 1)
+        self.cv1 = ConvNormAct(c1, c3, 1, 1, sync_bn=sync_bn)
         self.cv2 = SP(5)
         self.cv3 = SP(5)
         self.cv4 = SP(5)
-        self.cv5 = ConvNormAct(4*c3, c2, 1, 1)
+        self.cv5 = ConvNormAct(4*c3, c2, 1, 1, sync_bn=sync_bn)
 
     def construct(self, x):
         y = (self.cv1(x),)
@@ -245,13 +245,13 @@ class CBFuse(nn.Cell):
 
 
 class ADown(nn.Cell):
-    def __init__(self, c1, c2):  # ch_in, ch_out, shortcut, kernels, groups, expand
+    def __init__(self, c1, c2, sync_bn=False):  # ch_in, ch_out, shortcut, kernels, groups, expand
         super(ADown, self).__init__()
         self.c = c2 // 2
         self.avg_pool2d = nn.AvgPool2d(2)
         self.max_pool2d = nn.MaxPool2d(3, 2, pad_mode='pad', padding=1)
-        self.cv1 = ConvNormAct(c1 // 2, self.c, 3, 2, 1)
-        self.cv2 = ConvNormAct(c1 // 2, self.c, 1, 1, 0)
+        self.cv1 = ConvNormAct(c1 // 2, self.c, 3, 2, 1, sync_bn=sync_bn)
+        self.cv2 = ConvNormAct(c1 // 2, self.c, 1, 1, 0, sync_bn=sync_bn)
 
     def construct(self, x):
         x = self.avg_pool2d(x)

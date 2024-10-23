@@ -171,6 +171,11 @@ def parse_model(d, ch, nc, sync_bn=False):  # model_dict, input_channels(3)
                 DWConvNormAct,
                 DWBottleneck,
                 DWC3,
+                RepNCSPELAN4,
+                AConv,
+                ELAN1,
+                SPPELAN,
+                ADown
             ):
                 kwargs["sync_bn"] = sync_bn
             if m in (DownC, SPPCSPC, C3, C2f, DWC3):

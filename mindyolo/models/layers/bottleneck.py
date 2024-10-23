@@ -140,11 +140,11 @@ class DWC3(nn.Cell):
 
 class RepNBottleneck(nn.Cell):
     # Standard bottleneck
-    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):  # ch_in, ch_out, shortcut, kernels, groups, expand
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5, sync_bn=False):  # ch_in, ch_out, shortcut, kernels, groups, expand
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
-        self.cv1 = RepConv(c1, c_, k[0], 1)
-        self.cv2 = ConvNormAct(c_, c2, k[1], 1, g=g)
+        self.cv1 = RepConv(c1, c_, k[0], 1, sync_bn=sync_bn)
+        self.cv2 = ConvNormAct(c_, c2, k[1], 1, g=g, sync_bn=sync_bn)
         self.add = shortcut and c1 == c2
 
     def construct(self, x):
@@ -153,13 +153,13 @@ class RepNBottleneck(nn.Cell):
 
 class RepNCSP(nn.Cell):
     # CSP Bottleneck with 3 convolutions
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, sync_bn=False):  # ch_in, ch_out, number, shortcut, groups, expansion
         super(RepNCSP, self).__init__()
         c_ = int(c2 * e)  # hidden channels
-        self.cv1 = ConvNormAct(c1, c_, 1, 1)
-        self.cv2 = ConvNormAct(c1, c_, 1, 1)
-        self.cv3 = ConvNormAct(2 * c_, c2, 1)  # optional act=FReLU(c2)
-        self.m = nn.SequentialCell(*(RepNBottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
+        self.cv1 = ConvNormAct(c1, c_, 1, 1, sync_bn=sync_bn)
+        self.cv2 = ConvNormAct(c1, c_, 1, 1, sync_bn=sync_bn)
+        self.cv3 = ConvNormAct(2 * c_, c2, 1, sync_bn=sync_bn)  # optional act=FReLU(c2)
+        self.m = nn.SequentialCell(*(RepNBottleneck(c_, c_, shortcut, g, e=1.0, sync_bn=sync_bn) for _ in range(n)))
 
     def construct(self, x):
         return self.cv3(ops.cat((self.m(self.cv1(x)), self.cv2(x)), 1))
@@ -167,13 +167,13 @@ class RepNCSP(nn.Cell):
 
 class RepNCSPELAN4(nn.Cell):
     # csp-elan
-    def __init__(self, c1, c2, c3, c4, c5=1):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(self, c1, c2, c3, c4, c5=1, sync_bn=False):  # ch_in, ch_out, number, shortcut, groups, expansion
         super(RepNCSPELAN4, self).__init__()
         self.c = c3//2
-        self.cv1 = ConvNormAct(c1, c3, 1, 1)
-        self.cv2 = nn.SequentialCell(RepNCSP(c3//2, c4, c5), ConvNormAct(c4, c4, 3, 1))
-        self.cv3 = nn.SequentialCell(RepNCSP(c4, c4, c5), ConvNormAct(c4, c4, 3, 1))
-        self.cv4 = ConvNormAct(c3+(2*c4), c2, 1, 1)
+        self.cv1 = ConvNormAct(c1, c3, 1, 1, sync_bn=sync_bn)
+        self.cv2 = nn.SequentialCell(RepNCSP(c3//2, c4, c5, sync_bn=sync_bn), ConvNormAct(c4, c4, 3, 1, sync_bn=sync_bn))
+        self.cv3 = nn.SequentialCell(RepNCSP(c4, c4, c5, sync_bn=sync_bn), ConvNormAct(c4, c4, 3, 1, sync_bn=sync_bn))
+        self.cv4 = ConvNormAct(c3+(2*c4), c2, 1, 1, sync_bn=sync_bn)
 
     def construct(self, x):
         y = ()
