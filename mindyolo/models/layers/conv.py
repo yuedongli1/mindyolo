@@ -259,6 +259,6 @@ class ADown(nn.Cell):
         x = self.avg_pool2d(x)
         x1, x2 = x.chunk(2, 1)
         x1 = self.cv1(x1)
-        x2 = self.max_pool2d(x)
+        x2 = self.max_pool2d(x2)
         x2 = self.cv2(x2)
         return ops.cat((x1, x2), 1)

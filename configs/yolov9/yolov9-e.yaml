@@ -24,7 +24,7 @@ network:
   # YOLOv9 backbone
   backbone:
     [
-    [-1, 1, Silence, []],
+    [-1, 1, Identity, []],
 
       # conv down
     [-1, 1, ConvNormAct, [64, 3, 2]],  # 1-P1/2
