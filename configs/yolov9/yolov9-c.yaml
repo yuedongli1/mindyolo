@@ -36,19 +36,19 @@ network:
     [-1, 1, RepNCSPELAN4, [256, 128, 64, 1]],  # 3
 
       # avg-conv down
-    [-1, 1, AConv, [256]],  # 4-P3/8
+    [-1, 1, ADown, [256]],  # 4-P3/8
 
       # elan-2 block
     [-1, 1, RepNCSPELAN4, [512, 256, 128, 1]],  # 5
 
       # avg-conv down
-    [-1, 1, AConv, [512]],  # 6-P4/16
+    [-1, 1, ADown, [512]],  # 6-P4/16
 
       # elan-2 block
     [-1, 1, RepNCSPELAN4, [512, 512, 256, 1]],  # 7
 
       # avg-conv down
-    [-1, 1, AConv, [512]],  # 8-P5/32
+    [-1, 1, ADown, [512]],  # 8-P5/32
 
       # elan-2 block
     [-1, 1, RepNCSPELAN4, [512, 512, 256, 1]],  # 9
@@ -75,14 +75,14 @@ network:
     [-1, 1, RepNCSPELAN4, [256, 256, 128, 1]],  # 16
 
       # avg-conv-down merge
-    [-1, 1, AConv, [256]],
+    [-1, 1, ADown, [256]],
     [[-1, 13], 1, Concat, [1]],  # cat head P4
 
       # elan-2 block
     [-1, 1, RepNCSPELAN4, [512, 512, 256, 1]],  # 19 (P4/16-medium)
 
       # avg-conv-down merge
-    [-1, 1, AConv, [512]],
+    [-1, 1, ADown, [512]],
     [[-1, 10], 1, Concat, [1]],  # cat head P5
 
       # elan-2 block
@@ -106,21 +106,21 @@ network:
     [-1, 1, RepNCSPELAN4, [256, 128, 64, 1]],  # 28
 
       # avg-conv down
-    [-1, 1, AConv, [256]],   # 29-P3/8
+    [-1, 1, ADown, [256]],   # 29-P3/8
     [[23, 24, 25, -1], 1, CBFuse, [[0, 0, 0]]], # 30
 
       # elan-2 block
     [-1, 1, RepNCSPELAN4, [512, 256, 120, 1]],  # 31
 
       # avg-conv down
-    [-1, 1, AConv, [512]],   # 32-P4/16
+    [-1, 1, ADown, [512]],   # 32-P4/16
     [[24, 25, -1], 1, CBFuse, [[1, 1]]], # 33
 
       # elan-2 block
     [-1, 1, RepNCSPELAN4, [512, 512, 256, 1]],  # 34
 
       # avg-conv down
-    [-1, 1, AConv, [512]],   # 35-P5/32
+    [-1, 1, ADown, [512]],   # 35-P5/32
     [[25, -1], 1, CBFuse, [[2]]], # 36
 
       # elan-2 block
