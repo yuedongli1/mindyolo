@@ -251,7 +251,7 @@ class ADown(nn.Cell):
         super(ADown, self).__init__()
         self.c = c2 // 2
         self.avg_pool2d = nn.AvgPool2d(2)
-        self.max_pool2d = nn.MaxPool2d(3, 2, pad_mode='pad', padding=1)
+        self.max_pool2d = nn.MaxPool2d(3, 2, pad_mode='same')
         self.cv1 = ConvNormAct(c1 // 2, self.c, 3, 2, 1, sync_bn=sync_bn)
         self.cv2 = ConvNormAct(c1 // 2, self.c, 1, 1, 0, sync_bn=sync_bn)
 
