@@ -195,6 +195,8 @@ def parse_model(d, ch, nc, sync_bn=False):  # model_dict, input_channels(3)
             args.append([ch[x] for x in f])
             if m in (YOLOv8SegHead,):
                 args[3] = math.ceil(min(args[3], max_channels) * gw / 8) * 8
+            if m in (YOLOv9Head,):
+                kwargs["sync_bn"] = sync_bn
         elif m is ReOrg:
             c2 = ch[f] * 4
         elif m is CBLinear:
