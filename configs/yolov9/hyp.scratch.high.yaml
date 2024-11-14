@@ -1,7 +1,7 @@
 optimizer:
   optimizer: momentum
   lr_init: 0.01  # initial learning rate (SGD=1E-2, Adam=1E-3)
-  momentum: 0.937  # SGD momentum/Adam beta1
+  momentum: 0.9  # SGD momentum/Adam beta1
   nesterov: True  # update gradients with NAG(Nesterov Accelerated Gradient) algorithm
   loss_scale: 1.0  # loss scale for optimizer
   warmup_epochs: 3  # warmup epochs (fractions ok)
@@ -14,7 +14,7 @@ optimizer:
   end_factor: 0.01
 
 loss:
-  name: YOLOv9Loss
+  name: YOLOv8Loss
   box: 7.5  # box loss gain
   cls: 0.5  # cls loss gain
   dfl: 1.5  # dfl loss gain

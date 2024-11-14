@@ -177,7 +177,6 @@ def test_detect(
         # Run infer
         _t = time.time()
         out, _ = network(imgs)  # inference and training outputs
-        out = out[1]
         infer_times += time.time() - _t
 
         # Run NMS
