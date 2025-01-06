@@ -2,7 +2,6 @@ import math
 import os
 from copy import deepcopy
 
-import mindspore as ms
 from mindspore import load_checkpoint, load_param_into_net, nn, ops
 
 from mindyolo.utils import logger

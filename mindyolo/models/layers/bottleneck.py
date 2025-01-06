@@ -307,7 +307,7 @@ class C3k2(C2f):
         """Initializes the C3k2 module, a faster CSP Bottleneck with 2 convolutions and optional C3k blocks."""
         super().__init__(c1, c2, n, shortcut, g, e, sync_bn=sync_bn)
         self.m = nn.CellList(
-            C3k(self.c, self.c, 2, shortcut, g, sync_bn=sync_bn) if c3k else Bottleneck(self.c, self.c, shortcut, g=g, sync_bn=sync_bn) for _ in range(n)
+            [C3k(self.c, self.c, 2, shortcut, g, sync_bn=sync_bn) if c3k else Bottleneck(self.c, self.c, shortcut, g=g, sync_bn=sync_bn) for _ in range(n)]
         )
 
 
@@ -392,7 +392,7 @@ class C2PSA(nn.Cell):
         self.cv1 = ConvNormAct(c1, 2 * self.c, 1, 1, sync_bn=sync_bn)
         self.cv2 = ConvNormAct(2 * self.c, c1, 1, sync_bn=sync_bn)
 
-        self.m = nn.Sequential(*(PSABlock(self.c, attn_ratio=0.5, num_heads=self.c // 64, sync_bn=sync_bn) for _ in range(n)))
+        self.m = nn.SequentialCell(*(PSABlock(self.c, attn_ratio=0.5, num_heads=self.c // 64, sync_bn=sync_bn) for _ in range(n)))
 
     def construct(self, x):
         """Processes the input tensor 'x' through a series of PSA blocks and returns the transformed tensor."""

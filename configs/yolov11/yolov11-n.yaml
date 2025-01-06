@@ -1,7 +1,7 @@
 __BASE__: [
   '../coco.yaml',
   './hyp.scratch.n.yaml',
-  './yolov8-base.yaml'
+  './yolov11-base.yaml'
 ]
 
 overflow_still_update: False

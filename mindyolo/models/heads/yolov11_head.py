@@ -9,8 +9,8 @@ from ..layers import DFL, ConvNormAct, Identity, DWConv
 from ..layers.utils import meshgrid
 
 
-class YOLO11Head(nn.Cell):
-    # YOLO11 Detect head for detection models
+class YOLOv11Head(nn.Cell):
+    # YOLOv11 Detect head for detection models
     def __init__(self, nc=80, reg_max=16, stride=(), ch=(), sync_bn=False):  # detection layer
         super().__init__()
         # self.dynamic = False # force grid reconstruction
@@ -39,9 +39,11 @@ class YOLO11Head(nn.Cell):
         )
         self.cv3 = nn.CellList(
             nn.SequentialCell(
-                nn.SequentialCell(DWConv(x, x, 3, sync_bn=sync_bn), ConvNormAct(x, c3, 1, sync_bn=sync_bn)),
-                nn.SequentialCell(DWConv(c3, c3, 3, sync_bn=sync_bn), ConvNormAct(c3, c3, 1, sync_bn=sync_bn)),
-                nn.Conv2d(c3, self.nc, 1),
+                [
+                    nn.SequentialCell(DWConv(x, x, 3, sync_bn=sync_bn), ConvNormAct(x, c3, 1, sync_bn=sync_bn)),
+                    nn.SequentialCell(DWConv(c3, c3, 3, sync_bn=sync_bn), ConvNormAct(c3, c3, 1, sync_bn=sync_bn)),
+                    nn.Conv2d(c3, self.nc, 1, has_bias=True),
+                ]
             )
             for x in ch
         )
