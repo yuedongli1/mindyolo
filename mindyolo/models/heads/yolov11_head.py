@@ -38,6 +38,7 @@ class YOLOv11Head(nn.Cell):
             ]
         )
         self.cv3 = nn.CellList(
+            [
             nn.SequentialCell(
                 [
                     nn.SequentialCell(DWConv(x, x, 3, sync_bn=sync_bn), ConvNormAct(x, c3, 1, sync_bn=sync_bn)),
@@ -46,6 +47,7 @@ class YOLOv11Head(nn.Cell):
                 ]
             )
             for x in ch
+            ]
         )
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else Identity()
 

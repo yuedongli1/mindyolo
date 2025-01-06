@@ -26,7 +26,7 @@ data:
   num_parallel_workers: 4
 
   # multi-stage data augment
-  train_transforms: {
+  train_transforms:
       [
         {func_name: letterbox, scaleup: True},
         {func_name: resample_segments},

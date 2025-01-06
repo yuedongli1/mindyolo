@@ -307,7 +307,7 @@ class C3k2(C2f):
         """Initializes the C3k2 module, a faster CSP Bottleneck with 2 convolutions and optional C3k blocks."""
         super().__init__(c1, c2, n, shortcut, g, e, sync_bn=sync_bn)
         self.m = nn.CellList(
-            [C3k(self.c, self.c, 2, shortcut, g, sync_bn=sync_bn) if c3k else Bottleneck(self.c, self.c, shortcut, g=g, sync_bn=sync_bn) for _ in range(n)]
+            [C3k(self.c, self.c, 2, shortcut, g, sync_bn=sync_bn) if c3k else Bottleneck(self.c, self.c, shortcut, g=(1,g), sync_bn=sync_bn) for _ in range(n)]
         )
 
 
@@ -319,7 +319,7 @@ class C3k(C3):
         super().__init__(c1, c2, n, shortcut, g, e, sync_bn=sync_bn)
         c_ = int(c2 * e)  # hidden channels
         # self.m = nn.Sequential(*(RepBottleneck(c_, c_, shortcut, g, k=(k, k), e=1.0) for _ in range(n)))
-        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, k=(k, k), g=g, e=1.0, sync_bn=sync_bn) for _ in range(n)))
+        self.m = nn.SequentialCell(*(Bottleneck(c_, c_, shortcut, k=(k, k), g=(1, g), e=1.0, sync_bn=sync_bn) for _ in range(n)))
 
 
 class PSABlock(nn.Cell):

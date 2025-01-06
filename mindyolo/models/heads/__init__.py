@@ -7,7 +7,7 @@ from .yolov8_head import *
 from .yolov9_head import *
 from .yolox_head import *
 from .yolov10_head import *
-from .yolo11_head import *
+from .yolov11_head import *
 
 __all__ = [
     "YOLOv3Head",
@@ -18,5 +18,5 @@ __all__ = [
     "YOLOXHead",
     "YOLOv9Head",
     "YOLOv10Head",
-    "YOLO11Head"
+    "YOLOv11Head"
 ]
