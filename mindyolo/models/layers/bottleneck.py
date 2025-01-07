@@ -37,7 +37,7 @@ class Residualblock(nn.Cell):
 
 class C3(nn.Cell):
     # CSP Bottleneck with 3 convolutions
-    def __init__(self, c1, c2, n=1, shortcut=True, e=0.5, momentum=0.97, eps=1e-3, sync_bn=False):
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, momentum=0.97, eps=1e-3, sync_bn=False):
         super(C3, self).__init__()
         c_ = int(c2 * e)  # hidden channels
         self.conv1 = ConvNormAct(c1, c_, 1, 1, momentum=momentum, eps=eps, sync_bn=sync_bn)
@@ -45,7 +45,7 @@ class C3(nn.Cell):
         self.conv3 = ConvNormAct(2 * c_, c2, 1, momentum=momentum, eps=eps, sync_bn=sync_bn)  # act=FReLU(c2)
         self.m = nn.SequentialCell(
             [
-                Bottleneck(c_, c_, shortcut, k=(1, 3), e=1.0, momentum=momentum, eps=eps, sync_bn=sync_bn)
+                Bottleneck(c_, c_, shortcut, k=(1, 3), g=(1, g), e=1.0, momentum=momentum, eps=eps, sync_bn=sync_bn)
                 for _ in range(n)
             ]
         )
@@ -307,7 +307,7 @@ class C3k2(C2f):
         """Initializes the C3k2 module, a faster CSP Bottleneck with 2 convolutions and optional C3k blocks."""
         super().__init__(c1, c2, n, shortcut, g, e, sync_bn=sync_bn)
         self.m = nn.CellList(
-            [C3k(self.c, self.c, 2, shortcut, g, sync_bn=sync_bn) if c3k else Bottleneck(self.c, self.c, shortcut, g=(1,g), sync_bn=sync_bn) for _ in range(n)]
+            [C3k(self.c, self.c, 2, shortcut, g, sync_bn=sync_bn) if c3k else Bottleneck(self.c, self.c, shortcut, k=(3, 3), g=(1,g), sync_bn=sync_bn) for _ in range(n)]
         )
 
 
