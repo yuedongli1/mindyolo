@@ -1,6 +1,6 @@
 __BASE__: [
   '../coco.yaml',
-  './hyp.scratch.n.yaml',
+  './hyp.scratch.yaml',
   './yolov11-base.yaml'
 ]
 
