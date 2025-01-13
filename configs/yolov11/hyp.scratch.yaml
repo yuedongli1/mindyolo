@@ -14,7 +14,7 @@ optimizer:
   end_factor: 0.01
 
 loss:
-  name: YOLOv8Loss
+  name: YOLOv11Loss
   box: 7.5  # box loss gain
   cls: 0.5  # cls loss gain
   dfl: 1.5  # dfl loss gain

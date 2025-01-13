@@ -3,6 +3,9 @@ per_batch_size: 16  # 16 * 8 = 128
 img_size: 640
 iou_thres: 0.7
 conf_free: True
+clip_grad: True
+ms_loss_scaler: dynamic
+ms_loss_scaler_value: 65536.0
 sync_bn: False
 anchor_base: False
 opencv_threads_num: 0  # opencv: disable threading optimizations
