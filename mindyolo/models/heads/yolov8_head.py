@@ -3,7 +3,7 @@ import numpy as np
 
 import mindspore as ms
 import mindspore.numpy as mnp
-from mindspore import Parameter, Tensor, nn, ops
+from mindspore import Parameter, Tensor, nn, ops, mint
 
 from ..layers import DFL, ConvNormAct, Identity
 from ..layers.utils import meshgrid
@@ -31,7 +31,7 @@ class YOLOv8Head(nn.Cell):
                     [
                         ConvNormAct(x, c2, 3, sync_bn=sync_bn),
                         ConvNormAct(c2, c2, 3, sync_bn=sync_bn),
-                        nn.Conv2d(c2, 4 * self.reg_max, 1, has_bias=True),
+                        mint.nn.Conv2d(c2, 4 * self.reg_max, 1, has_bias=True),
                     ]
                 )
                 for x in ch
@@ -43,7 +43,7 @@ class YOLOv8Head(nn.Cell):
                     [
                         ConvNormAct(x, c3, 3, sync_bn=sync_bn),
                         ConvNormAct(c3, c3, 3, sync_bn=sync_bn),
-                        nn.Conv2d(c3, self.nc, 1, has_bias=True),
+                        mint.nn.Conv2d(c3, self.nc, 1, has_bias=True),
                     ]
                 )
                 for x in ch
@@ -55,7 +55,7 @@ class YOLOv8Head(nn.Cell):
         shape = x[0].shape  # BCHW
         out = ()
         for i in range(self.nl):
-            out += (ops.concat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1),)
+            out += (mint.concat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1),)
 
         p = None
         if not self.training:
@@ -64,12 +64,12 @@ class YOLOv8Head(nn.Cell):
             _x = ()
             for i in range(len(out)):
                 _x += (out[i].view(shape[0], self.no, -1),)
-            _x = ops.concat(_x, 2)
+            _x = mint.concat(_x, 2)
             box, cls = _x[:, : self.reg_max * 4, :], _x[:, self.reg_max * 4 : self.reg_max * 4 + self.nc, :]
             # box, cls = ops.concat([xi.view(shape[0], self.no, -1) for xi in x], 2).split((self.reg_max * 4, self.nc), 1)
-            dbox = self.dist2bbox(self.dfl(box), ops.expand_dims(_anchors, 0), xywh=True, axis=1) * _strides
-            p = ops.concat((dbox, ops.Sigmoid()(cls)), 1)
-            p = ops.transpose(p, (0, 2, 1))  # (bs, no-84, nbox) -> (bs, nbox, no-84)
+            dbox = self.dist2bbox(self.dfl(box), mint.unsqueeze(_anchors, 0), xywh=True, axis=1) * _strides
+            p = mint.concat((dbox, mint.sigmoid(cls)), 1)
+            p = mint.permute(p, (0, 2, 1))  # (bs, no-84, nbox) -> (bs, nbox, no-84)
 
         return out if self.training else (p, out)
 
@@ -84,21 +84,21 @@ class YOLOv8Head(nn.Cell):
             sy = mnp.arange(h, dtype=dtype) + grid_cell_offset  # shift y
             # FIXME: Not supported on a specific model of machine
             sy, sx = meshgrid((sy, sx), indexing="ij")
-            anchor_points += (ops.stack((sx, sy), -1).view(-1, 2),)
-            stride_tensor += (ops.ones((h * w, 1), dtype) * stride,)
-        return ops.concat(anchor_points), ops.concat(stride_tensor)
+            anchor_points += (mint.stack((sx, sy), -1).view(-1, 2),)
+            stride_tensor += (mint.ones((h * w, 1), dtype) * stride,)
+        return mint.concat(anchor_points), mint.concat(stride_tensor)
 
     @staticmethod
     def dist2bbox(distance, anchor_points, xywh=True, axis=-1):
         """Transform distance(ltrb) to box(xywh or xyxy)."""
-        lt, rb = ops.split(distance, split_size_or_sections=2, axis=axis)
+        lt, rb = mint.split(distance, split_size_or_sections=2, axis=axis)
         x1y1 = anchor_points - lt
         x2y2 = anchor_points + rb
         if xywh:
             c_xy = (x1y1 + x2y2) / 2
             wh = x2y2 - x1y1
-            return ops.concat((c_xy, wh), axis)  # xywh bbox
-        return ops.concat((x1y1, x2y2), axis)  # xyxy bbox
+            return mint.concat((c_xy, wh), axis)  # xywh bbox
+        return mint.concat((x1y1, x2y2), axis)  # xyxy bbox
 
     def initialize_biases(self):
         # Initialize Detect() biases, WARNING: requires stride availability
@@ -123,21 +123,21 @@ class YOLOv8SegHead(YOLOv8Head):
         self.detect = YOLOv8Head.construct
 
         c4 = max(ch[0] // 4, self.nm)
-        self.cv4 = nn.CellList([nn.SequentialCell(ConvNormAct(x, c4, 3), ConvNormAct(c4, c4, 3), nn.Conv2d(c4, self.nm, 1, has_bias=True)) for x in ch])
+        self.cv4 = nn.CellList([nn.SequentialCell(ConvNormAct(x, c4, 3), ConvNormAct(c4, c4, 3), mint.nn.Conv2d(c4, self.nm, 1, has_bias=True)) for x in ch])
 
     def construct(self, x):
         """Return model outputs and mask coefficients if training, otherwise return outputs and mask coefficients."""
         p = self.proto(x[0])  # mask protos
         bs = p.shape[0]  # batch size
 
-        mc = ops.cat([self.cv4[i](x[i]).view(bs, self.nm, -1) for i in range(self.nl)], 2)  # mask coefficients
+        mc = mint.cat([self.cv4[i](x[i]).view(bs, self.nm, -1) for i in range(self.nl)], 2)  # mask coefficients
         x = self.detect(self, x)  # x: out if self.training else (p, out)
         if self.training:
             return x, mc, p
 
-        mc = ops.transpose(mc, (0, 2, 1))  # (bs, 32, nbox) -> (bs, nbox, 32)
+        mc = mint.permute(mc, (0, 2, 1))  # (bs, 32, nbox) -> (bs, nbox, 32)
         # cat: (bs, nbox, no-84), (bs, nbox, 32) -> (bs, nbox, 84+32)
-        return ops.cat([x[0], mc], 2), (x[1], mc, p)
+        return mint.cat([x[0], mc], 2), (x[1], mc, p)
 
 
 class Proto(nn.Cell):

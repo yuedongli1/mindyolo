@@ -1,7 +1,7 @@
 import math
 from typing import Tuple
 
-from mindspore import Tensor, ops
+from mindspore import Tensor, ops, mint
 
 
 def make_divisible(x, divisor):
@@ -30,11 +30,11 @@ def meshgrid(inputs, indexing="xy"):
     nx, ny = x.shape[0], y.shape[0]
     xv, yv = None, None
     if indexing == "xy":
-        xv = ops.tile(x.view(1, -1), (ny, 1))
-        yv = ops.tile(y.view(-1, 1), (1, nx))
+        xv = mint.tile(x.view(1, -1), (ny, 1))
+        yv = mint.tile(y.view(-1, 1), (1, nx))
     elif indexing == "ij":
-        xv = ops.tile(x.view(-1, 1), (1, ny))
-        yv = ops.tile(y.view(1, -1), (nx, 1))
+        xv = mint.tile(x.view(-1, 1), (1, ny))
+        yv = mint.tile(y.view(1, -1), (nx, 1))
 
     return xv, yv
 
@@ -50,7 +50,7 @@ def box_cxcywh_to_xyxy(bbox) -> Tensor:
     """
     cx, cy, w, h = ops.unstack(bbox, axis=-1)
     new_bbox = tuple([(cx - 0.5 * w), (cy - 0.5 * h), (cx + 0.5 * w), (cy + 0.5 * h)])
-    aa = ops.stack(new_bbox, axis=-1)
+    aa = mint.stack(new_bbox, axis=-1)
     return aa
 
 
@@ -65,7 +65,7 @@ def box_xyxy_to_cxcywh(bbox) -> Tensor:
     """
     x0, y0, x1, y1 = ops.unstack(bbox, axis=-1)
     new_bbox = tuple([(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0), (y1 - y0)])
-    return ops.stack(new_bbox, axis=-1)
+    return mint.stack(new_bbox, axis=-1)
 
 
 def box_scale(boxes, scale, sclale_reciprocal=False) -> Tensor:
@@ -99,7 +99,7 @@ def box_clip(boxes, clip_size: Tuple[int, int]) -> Tensor:
     y1 = boxes[..., 1].clip(0, h)
     x2 = boxes[..., 2].clip(0, w)
     y2 = boxes[..., 3].clip(0, h)
-    boxes = ops.stack((x1, y1, x2, y2), axis=-1)
+    boxes = mint.stack((x1, y1, x2, y2), axis=-1)
     return boxes
 
 

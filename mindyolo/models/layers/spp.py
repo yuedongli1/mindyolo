@@ -1,4 +1,4 @@
-from mindspore import nn, ops
+from mindspore import nn, ops, mint
 
 from .conv import ConvNormAct
 from .pool import MaxPool2d
@@ -31,9 +31,9 @@ class SPPCSPC(nn.Cell):
         m_tuple = (x1,)
         for i in range(len(self.m)):
             m_tuple += (self.m[i](x1),)
-        y1 = self.cv6(self.cv5(ops.Concat(axis=1)(m_tuple)))
+        y1 = self.cv6(self.cv5(mint.concat(m_tuple, 1)))
         y2 = self.cv2(x)
-        return self.cv7(ops.Concat(axis=1)((y1, y2)))
+        return self.cv7(mint.concat((y1, y2), 1))
 
 
 class SPPF(nn.Cell):
@@ -45,13 +45,12 @@ class SPPF(nn.Cell):
         c_ = c1 // 2  # hidden channels
         self.conv1 = ConvNormAct(c1, c_, 1, 1, act=act, momentum=momentum, eps=eps, sync_bn=sync_bn)
         self.conv2 = ConvNormAct(c_ * 4, c2, 1, 1, act=act, momentum=momentum, eps=eps, sync_bn=sync_bn)
-        self.concat = ops.Concat(axis=1)
-        self.m = nn.MaxPool2d(kernel_size=k, stride=1, pad_mode="same")
+        self.m = mint.nn.MaxPool2d(kernel_size=k, stride=1, pad_mode="same")
 
     def construct(self, x):
         x = self.conv1(x)
         y1 = self.m(x)
         y2 = self.m(y1)
         y3 = self.m(y2)
-        y = self.conv2(self.concat((x, y1, y2, y3)))
+        y = self.conv2(mint.concat((x, y1, y2, y3), 1))
         return y

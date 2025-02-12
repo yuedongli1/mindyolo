@@ -1,4 +1,4 @@
-from mindspore import nn, ops
+from mindspore import nn, ops, mint
 
 
 class Upsample(nn.Cell):
@@ -24,6 +24,6 @@ class Upsample(nn.Cell):
 
     def construct(self, x):
         if self.mode == "nearest" and self.scales:
-            return ops.ResizeNearestNeighbor((x.shape[-2] * self.scales, x.shape[-1] * self.scales))(x)
+            return mint.nn.functional.interpolate(x, (x.shape[-2] * self.scales, x.shape[-1] * self.scales))
         else:
-            return ops.interpolate(x, sizes=self.sizes, scales=self.scales, mode=self.mode)
+            return mint.nn.functional.interpolate(x, size=self.sizes, scale_factor=self.scales, mode=self.mode)

@@ -1,7 +1,7 @@
 import math
 
 import mindspore as ms
-from mindspore import Tensor, ops
+from mindspore import Tensor, ops, mint
 
 from mindyolo.models.layers.utils import box_cxcywh_to_xyxy
 
@@ -52,12 +52,12 @@ def box_iou(box1, box2):
     expand_size_1 = box2.shape[0]
     expand_size_2 = box1.shape[0]
 
-    box1 = ops.tile(ops.expand_dims(box1, 1), (1, expand_size_1, 1))
-    box2 = ops.tile(ops.expand_dims(box2, 0), (expand_size_2, 1, 1))
+    box1 = mint.tile(mint.unsqueeze(box1, 1), (1, expand_size_1, 1))
+    box2 = mint.tile(mint.unsqueeze(box2, 0), (expand_size_2, 1, 1))
 
     # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
     # inter = ops.minimum(box1[:, None, 2:], box2[None, :, 2:]) - ops.maximum(box1[:, None, :2], box2[None, :, :2])
-    inter = ops.minimum(box1[..., 2:], box2[..., 2:]) - ops.maximum(box1[..., :2], box2[..., :2])
+    inter = mint.minimum(box1[..., 2:], box2[..., 2:]) - mint.maximum(box1[..., :2], box2[..., :2])
     inter = inter.clip(0.0, None)
     inter = inter[:, :, 0] * inter[:, :, 1]
     return inter / (area1[:, None] + area2[None, :] - inter).clip(EPS, None)  # iou = inter / (area1 + area2 - inter)
@@ -83,11 +83,11 @@ def batch_box_iou(batch_box1, batch_box2, xywh=False):
 
     expand_size_1 = batch_box2.shape[1]
     expand_size_2 = batch_box1.shape[1]
-    batch_box1 = ops.tile(ops.expand_dims(batch_box1, 2), (1, 1, expand_size_1, 1))
-    batch_box2 = ops.tile(ops.expand_dims(batch_box2, 1), (1, expand_size_2, 1, 1))
+    batch_box1 = mint.tile(mint.unsqueeze(batch_box1, 2), (1, 1, expand_size_1, 1))
+    batch_box2 = mint.tile(mint.unsqueeze(batch_box2, 1), (1, expand_size_2, 1, 1))
 
     # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
-    inter = ops.minimum(batch_box1[..., 2:], batch_box2[..., 2:]) - ops.maximum(
+    inter = mint.minimum(batch_box1[..., 2:], batch_box2[..., 2:]) - mint.maximum(
         batch_box1[..., :2], batch_box2[..., :2]
     )
     inter = inter.clip(0.0, None)
@@ -113,18 +113,18 @@ def bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7
 
     # Get the coordinates of bounding boxes
     if xywh:  # transform from xywh to xyxy
-        x1, y1, w1, h1 = ops.split(box1, split_size_or_sections=1, axis=-1)
-        x2, y2, w2, h2 = ops.split(box2, split_size_or_sections=1, axis=-1)
+        x1, y1, w1, h1 = mint.split(box1, split_size_or_sections=1, axis=-1)
+        x2, y2, w2, h2 = mint.split(box2, split_size_or_sections=1, axis=-1)
         w1_, h1_, w2_, h2_ = w1 / 2, h1 / 2, w2 / 2, h2 / 2
         b1_x1, b1_x2, b1_y1, b1_y2 = x1 - w1_, x1 + w1_, y1 - h1_, y1 + h1_
         b2_x1, b2_x2, b2_y1, b2_y2 = x2 - w2_, x2 + w2_, y2 - h2_, y2 + h2_
     else:  # x1, y1, x2, y2 = box1
-        b1_x1, b1_y1, b1_x2, b1_y2 = ops.split(box1, split_size_or_sections=1, axis=-1)
-        b2_x1, b2_y1, b2_x2, b2_y2 = ops.split(box2, split_size_or_sections=1, axis=-1)
+        b1_x1, b1_y1, b1_x2, b1_y2 = mint.split(box1, split_size_or_sections=1, axis=-1)
+        b2_x1, b2_y1, b2_x2, b2_y2 = mint.split(box2, split_size_or_sections=1, axis=-1)
 
     # Intersection area
-    inter = (ops.minimum(b1_x2, b2_x2) - ops.maximum(b1_x1, b2_x1)).clip(0., None) * \
-            (ops.minimum(b1_y2, b2_y2) - ops.maximum(b1_y1, b2_y1)).clip(0., None)
+    inter = (mint.minimum(b1_x2, b2_x2) - mint.maximum(b1_x1, b2_x1)).clip(0., None) * \
+            (mint.minimum(b1_y2, b2_y2) - mint.maximum(b1_y1, b2_y1)).clip(0., None)
 
     # Union Area
     w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1 + eps
@@ -135,14 +135,14 @@ def bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7
     iou = inter / union
 
     if CIoU or DIoU or GIoU:
-        cw = ops.maximum(b1_x2, b2_x2) - ops.minimum(b1_x1, b2_x1)  # convex (smallest enclosing box) width
-        ch = ops.maximum(b1_y2, b2_y2) - ops.minimum(b1_y1, b2_y1)  # convex height
+        cw = mint.maximum(b1_x2, b2_x2) - mint.minimum(b1_x1, b2_x1)  # convex (smallest enclosing box) width
+        ch = mint.maximum(b1_y2, b2_y2) - mint.minimum(b1_y1, b2_y1)  # convex height
         if CIoU or DIoU:  # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
             c2 = cw**2 + ch**2 + eps  # convex diagonal squared
             rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 + (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4  # center dist ** 2
             if CIoU:  # https://github.com/Zzh-tju/DIoU-SSD-pytorch/blob/master/utils/box/box_utils.py#L47
                 # v = (4 / get_pi(iou.dtype) ** 2) * ops.pow(ops.atan(w2 / (h2 + eps)) - ops.atan(w1 / (h1 + eps)), 2)
-                v = (4 / PI.astype(iou.dtype) ** 2) * ops.pow(ops.atan(w2 / (h2 + eps)) - ops.atan(w1 / (h1 + eps)), 2)
+                v = (4 / PI.astype(iou.dtype) ** 2) * mint.pow(mint.atan(w2 / (h2 + eps)) - mint.atan(w1 / (h1 + eps)), 2)
                 alpha = v / (v - iou + (1 + eps))
                 alpha = ops.stop_gradient(alpha)
                 return iou - (rho2 / c2 + v * alpha)  # CIoU

@@ -1,5 +1,5 @@
 import mindspore as ms
-from mindspore import Tensor, nn, ops
+from mindspore import Tensor, nn, ops, mint
 
 
 class YOLOv4Head(nn.Cell):
@@ -19,7 +19,7 @@ class YOLOv4Head(nn.Cell):
         self.na = len(anchors) // 3  # number of anchors
 
         self.m = nn.CellList(
-            [nn.Conv2d(x, self.no * self.na, 1, pad_mode="valid", has_bias=True) for x in ch]
+            [mint.nn.Conv2d(x, self.no * self.na, 1, pad_mode="valid", has_bias=True) for x in ch]
         )  # output conv
 
         # prediction on the default anchor boxes
@@ -39,7 +39,7 @@ class YOLOv4Head(nn.Cell):
             big = output_big.view(bs, -1, self.no)
             me = output_me.view(bs, -1, self.no)
             small = output_small.view(bs, -1, self.no)
-            return ops.concat((big, me, small), 1), (output_big, output_me, output_small)
+            return mint.concat((big, me, small), 1), (output_big, output_me, output_small)
 
         return output_big, output_me, output_small
 
@@ -72,8 +72,6 @@ class DetectionBlock(nn.Cell):
         self.num_anchors_per_scale = 3
         self.num_attrib = no
 
-        self.sigmoid = ops.Sigmoid()
-
     def construct(self, x):
         """construct method"""
         num_batch = x.shape[0]
@@ -87,14 +85,14 @@ class DetectionBlock(nn.Cell):
 
         range_x = range(grid_size[1])
         range_y = range(grid_size[0])
-        grid_x = ops.cast(ops.tuple_to_array(range_x), ms.float32)
-        grid_y = ops.cast(ops.tuple_to_array(range_y), ms.float32)
+        grid_x = mint.cast(ops.tuple_to_array(range_x), ms.float32)
+        grid_y = mint.cast(ops.tuple_to_array(range_y), ms.float32)
         # Tensor of shape [grid_size[0], grid_size[1], 1, 1] representing the coordinate of x/y axis for each grid
         # [batch, gridx, gridy, 1, 1]
-        grid_x = ops.tile(grid_x.view(1, 1, -1, 1, 1), (1, grid_size[0], 1, 1, 1))
-        grid_y = ops.tile(grid_y.view(1, -1, 1, 1, 1), (1, 1, grid_size[1], 1, 1))
+        grid_x = mint.tile(grid_x.view(1, 1, -1, 1, 1), (1, grid_size[0], 1, 1, 1))
+        grid_y = mint.tile(grid_y.view(1, -1, 1, 1, 1), (1, 1, grid_size[1], 1, 1))
         # Shape is [grid_size[0], grid_size[1], 1, 2]
-        grid = ops.concat((grid_x, grid_y), -1)
+        grid = mint.concat((grid_x, grid_y), -1)
 
         box_xy = prediction[:, :, :, :, :2]
         box_wh = prediction[:, :, :, :, 2:4]
@@ -103,19 +101,19 @@ class DetectionBlock(nn.Cell):
 
         # gridsize1 is x
         # gridsize0 is y
-        box_xy = (self.scale_x_y * self.sigmoid(box_xy) - self.offset_x_y + grid) / ops.cast(
+        box_xy = (self.scale_x_y * mint.sigmoid(box_xy) - self.offset_x_y + grid) / mint.cast(
             ops.tuple_to_array((grid_size[1], grid_size[0])), ms.float32
         )
         # box_wh is w->h
-        box_wh = ops.exp(box_wh) * self.anchors / input_shape
-        box_confidence = self.sigmoid(box_confidence)
-        box_probs = self.sigmoid(box_probs)
+        box_wh = mint.exp(box_wh) * self.anchors / input_shape
+        box_confidence = mint.sigmoid(box_confidence)
+        box_probs = mint.sigmoid(box_probs)
 
         if self.training:
             return prediction, box_xy, box_wh
         box_xy *= input_shape
         box_wh *= input_shape
-        return ops.concat((box_xy.astype(ms.float32),
+        return mint.concat((box_xy.astype(ms.float32),
                            box_wh.astype(ms.float32),
                            box_confidence.astype(ms.float32),
                            box_probs.astype(ms.float32)), -1)

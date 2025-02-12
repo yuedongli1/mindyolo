@@ -1,5 +1,5 @@
 import mindspore as ms
-from mindspore import nn, ops
+from mindspore import nn, ops, mint
 
 
 def smooth_BCE(eps=0.1):
@@ -29,7 +29,7 @@ class FocalLoss(nn.Cell):
 
     def __init__(self, bce_weight=None, bce_pos_weight=None, gamma=1.5, alpha=0.25, reduction="mean"):
         super(FocalLoss, self).__init__()
-        self.loss_fcn = nn.BCEWithLogitsLoss(weight=bce_weight, pos_weight=bce_pos_weight, reduction="none")
+        self.loss_fcn = mint.nn.BCEWithLogitsLoss(weight=bce_weight, pos_weight=bce_pos_weight, reduction="none")
         self.gamma = gamma
         self.alpha = alpha
         self.reduction = reduction  # default mean
@@ -40,7 +40,7 @@ class FocalLoss(nn.Cell):
         loss = self.loss_fcn(pred.astype(ms.float32), true.astype(ms.float32))
 
         # TF implementation https://github.com/tensorflow/addons/blob/v0.7.1/tensorflow_addons/losses/focal_loss.py
-        pred_prob = ops.sigmoid(pred)  # prob from logits
+        pred_prob = mint.sigmoid(pred)  # prob from logits
         p_t = true * pred_prob + (1 - true) * (1 - pred_prob)
         alpha_factor = true * self.alpha + (1 - true) * (1 - self.alpha)
         modulating_factor = (1.0 - p_t) ** self.gamma
@@ -77,7 +77,7 @@ class BCEWithLogitsLoss(nn.Cell):
         """
 
         super(BCEWithLogitsLoss, self).__init__()
-        self.loss_fcn = nn.BCEWithLogitsLoss(weight=bce_weight, pos_weight=bce_pos_weight, reduction="none")
+        self.loss_fcn = mint.nn.BCEWithLogitsLoss(weight=bce_weight, pos_weight=bce_pos_weight, reduction="none")
         self.reduction = reduction  # default mean
         assert self.loss_fcn.reduction == "none"  # required to apply FL to each element
 

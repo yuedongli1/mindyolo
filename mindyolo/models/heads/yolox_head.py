@@ -1,7 +1,7 @@
 import math
 
 import mindspore as ms
-from mindspore import Tensor, nn, ops
+from mindspore import Tensor, nn, ops, mint
 from mindspore import numpy as mnp
 from mindspore.common import initializer as init
 
@@ -61,9 +61,9 @@ class YOLOXHead(nn.Cell):
                     ]
                 )
             )
-            self.cls_preds.append(nn.Conv2d(hidden_ch, self.nc, 1, pad_mode="pad", has_bias=True))
-            self.reg_preds.append(nn.Conv2d(hidden_ch, 4, 1, pad_mode="pad", has_bias=True))
-            self.obj_preds.append(nn.Conv2d(hidden_ch, 1, 1, pad_mode="pad", has_bias=True))
+            self.cls_preds.append(mint.nn.Conv2d(hidden_ch, self.nc, 1, pad_mode="pad", has_bias=True))
+            self.reg_preds.append(mint.nn.Conv2d(hidden_ch, 4, 1, pad_mode="pad", has_bias=True))
+            self.obj_preds.append(mint.nn.Conv2d(hidden_ch, 1, 1, pad_mode="pad", has_bias=True))
 
     def construct(self, feat_list):
         assert isinstance(feat_list, (tuple, list)) and len(feat_list) == self.nl
@@ -81,13 +81,13 @@ class YOLOXHead(nn.Cell):
 
             # Convert to origin image scale (640)
             output = (
-                ops.concat([reg_output, obj_output, cls_output], 1)
+                mint.concat([reg_output, obj_output, cls_output], 1)
                 if self.training
-                else ops.concat([reg_output, ops.sigmoid(obj_output), ops.sigmoid(cls_output)], 1)
+                else mint.concat([reg_output, mint.sigmoid(obj_output), mint.sigmoid(cls_output)], 1)
             )
             output = self.convert_to_origin_scale(output, stride=self.stride[i])
             outputs.append(output)
-        outputs_cat = ops.concat(outputs, 1)
+        outputs_cat = mint.concat(outputs, 1)
         return outputs_cat if self.training else (outputs_cat, 1)
 
     def initialize_biases(self, prior_prob=1e-2):
@@ -99,29 +99,29 @@ class YOLOXHead(nn.Cell):
 
     def convert_to_origin_scale(self, output, stride):
         """map to origin image scale for each fpn"""
-        batch_size = ops.shape(output)[0]
-        grid_size = ops.shape(output)[2:4]
-        stride = ops.cast(stride, output.dtype)
+        batch_size = output.shape[0]
+        grid_size = output.shape[2:4]
+        stride = mint.cast(stride, output.dtype)
 
         # reshape predictions
-        output = ops.transpose(output, (0, 2, 3, 1))  # (bs,85,80,80)-->(bs, 80, 80, 85)
-        output = ops.reshape(output, (batch_size, 1 * grid_size[0] * grid_size[1], -1))  # bs, 6400, 85
+        output = mint.permute(output, (0, 2, 3, 1))  # (bs,85,80,80)-->(bs, 80, 80, 85)
+        output = mint.reshape(output, (batch_size, 1 * grid_size[0] * grid_size[1], -1))  # bs, 6400, 85
 
         # make grid
         grid = self._make_grid(nx=grid_size[1], ny=grid_size[0], dtype=output.dtype)  # (1,1,80,80,2)
-        grid = ops.reshape(grid, (1, -1, 2))  # grid(1, 6400, 2)
+        grid = mint.reshape(grid, (1, -1, 2))  # grid(1, 6400, 2)
 
         # feature map scale to origin scale
         output_xy = output[..., :2]
         output_xy = (output_xy + grid) * stride
         output_wh = output[..., 2:4]
-        output_wh = ops.exp(output_wh) * stride
+        output_wh = mint.exp(output_wh) * stride
         output_other = output[..., 4:]
-        output_t = ops.concat([output_xy, output_wh, output_other], -1)
+        output_t = mint.concat([output_xy, output_wh, output_other], -1)
         return output_t  # bs, 6400, 85
 
     @staticmethod
     def _make_grid(nx=20, ny=20, dtype=ms.float32):
         # FIXME: Not supported on a specific model of machine
         xv, yv = meshgrid((mnp.arange(nx), mnp.arange(ny)))
-        return ops.cast(ops.stack((xv, yv), 2).view((1, 1, ny, nx, 2)), dtype)
+        return mint.cast(mint.stack((xv, yv), 2).view((1, 1, ny, nx, 2)), dtype)

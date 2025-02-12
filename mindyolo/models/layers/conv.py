@@ -1,4 +1,4 @@
-from mindspore import nn, ops
+from mindspore import nn, ops, mint
 
 from .common import Identity
 from .utils import autopad
@@ -42,15 +42,15 @@ class ConvNormAct(nn.Cell):
         self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True, momentum=0.97, eps=1e-3, sync_bn=False
     ):  # ch_in, ch_out, kernel, stride, padding, groups
         super(ConvNormAct, self).__init__()
-        self.conv = nn.Conv2d(
+        self.conv = mint.nn.Conv2d(
             c1, c2, k, s, pad_mode="pad", padding=autopad(k, p, d), group=g, dilation=d, has_bias=False
         )
 
         if sync_bn:
-            self.bn = nn.SyncBatchNorm(c2, momentum=momentum, eps=eps)
+            self.bn = mint.nn.SyncBatchNorm(c2, momentum=momentum, eps=eps)
         else:
-            self.bn = nn.BatchNorm2d(c2, momentum=momentum, eps=eps)
-        self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Cell) else Identity())
+            self.bn = mint.nn.BatchNorm2d(c2, momentum=momentum, eps=eps)
+        self.act = mint.nn.SiLU() if act is True else (act if isinstance(act, nn.Cell) else Identity())
 
     def construct(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -97,22 +97,22 @@ class RepConv(nn.Cell):
 
         padding_11 = autopad(k, p) - k // 2
 
-        self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Cell) else Identity())
+        self.act = mint.nn.SiLU() if act is True else (act if isinstance(act, nn.Cell) else Identity())
 
         if sync_bn:
-            BatchNorm = nn.SyncBatchNorm
+            BatchNorm = mint.nn.SyncBatchNorm
         else:
-            BatchNorm = nn.BatchNorm2d
+            BatchNorm = mint.nn.BatchNorm2d
 
         self.rbr_identity = BatchNorm(num_features=c1, momentum=(1 - 0.03), eps=1e-3) if bn and c2 == c1 and s == 1 else None
         self.rbr_dense = nn.SequentialCell(
             [
-                nn.Conv2d(c1, c2, k, s, pad_mode="pad", padding=autopad(k, p), group=g, has_bias=False),
+                mint.nn.Conv2d(c1, c2, k, s, pad_mode="pad", padding=autopad(k, p), group=g, has_bias=False),
                 BatchNorm(num_features=c2, momentum=momentum, eps=eps),
             ]
         )
         self.rbr_1x1 = nn.SequentialCell(
-            nn.Conv2d(c1, c2, 1, s, pad_mode="pad", padding=padding_11, group=g, has_bias=False),
+            mint.nn.Conv2d(c1, c2, 1, s, pad_mode="pad", padding=padding_11, group=g, has_bias=False),
             BatchNorm(num_features=c2, momentum=momentum, eps=eps),
         )
 
@@ -137,7 +137,7 @@ class DownC(nn.Cell):
         self.cv1 = ConvNormAct(c1, c_, 1, 1, momentum=momentum, eps=eps, sync_bn=sync_bn)
         self.cv2 = ConvNormAct(c_, c2 // 2, 3, k, momentum=momentum, eps=eps, sync_bn=sync_bn)
         self.cv3 = ConvNormAct(c1, c2 // 2, 1, 1, momentum=momentum, eps=eps, sync_bn=sync_bn)
-        self.mp = nn.MaxPool2d(kernel_size=k, stride=k)
+        self.mp = mint.nn.MaxPool2d(kernel_size=k, stride=k)
 
     def construct(self, x):
         return ops.concat((self.cv2(self.cv1(x)), self.cv3(self.mp(x))), axis=1)
@@ -172,7 +172,7 @@ class DWConvNormAct(nn.Cell):
 class AConv(nn.Cell):
     def __init__(self, c1, c2, sync_bn=False):  # ch_in, ch_out, shortcut, kernels, groups, expand
         super(AConv, self).__init__()
-        self.avg_pool2d = nn.AvgPool2d(2)
+        self.avg_pool2d = mint.nn.AvgPool2d(2)
         self.cv1 = ConvNormAct(c1, c2, 3, 2, 1, sync_bn=sync_bn)
 
     def construct(self, x):
@@ -225,7 +225,7 @@ class CBLinear(nn.Cell):
     def __init__(self, c1, c2s, k=1, s=1, p=None, g=1):  # ch_in, ch_outs, kernel, stride, padding, groups
         super(CBLinear, self).__init__()
         self.c2s = c2s
-        self.conv = nn.Conv2d(c1, sum(c2s), k, s, pad_mode="pad", padding=autopad(k, p), group=g, has_bias=True)
+        self.conv = mint.nn.Conv2d(c1, sum(c2s), k, s, pad_mode="pad", padding=autopad(k, p), group=g, has_bias=True)
 
     def construct(self, x):
         outs = self.conv(x).split(self.c2s, axis=1)
@@ -250,7 +250,7 @@ class ADown(nn.Cell):
     def __init__(self, c1, c2, sync_bn=False):  # ch_in, ch_out, shortcut, kernels, groups, expand
         super(ADown, self).__init__()
         self.c = c2 // 2
-        self.avg_pool2d = nn.AvgPool2d(2)
+        self.avg_pool2d = mint.nn.AvgPool2d(2)
         self.max_pool2d = MaxPool2d(3, 2, padding=1)
         self.cv1 = ConvNormAct(c1 // 2, self.c, 3, 2, 1, sync_bn=sync_bn)
         self.cv2 = ConvNormAct(c1 // 2, self.c, 1, 1, 0, sync_bn=sync_bn)

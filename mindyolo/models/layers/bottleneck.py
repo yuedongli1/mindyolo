@@ -1,4 +1,4 @@
-from mindspore import nn, ops
+from mindspore import nn, ops, mint
 
 from .conv import ConvNormAct, DWConvNormAct, RepConv
 
@@ -49,13 +49,12 @@ class C3(nn.Cell):
                 for _ in range(n)
             ]
         )
-        self.concat = ops.Concat(axis=1)
 
     def construct(self, x):
         c1 = self.conv1(x)
         c2 = self.m(c1)
         c3 = self.conv2(x)
-        c4 = self.concat((c2, c3))
+        c4 = mint.concat((c2, c3), 1)
         c5 = self.conv3(c4)
 
         return c5
@@ -83,14 +82,14 @@ class C2f(nn.Cell):
         y = ()
         x = self.cv1(x)
         _c = x.shape[1] // 2
-        x_tuple = ops.split(x, axis=1, split_size_or_sections=_c)
+        x_tuple = mint.split(x, axis=1, split_size_or_sections=_c)
         y += x_tuple
         for i in range(len(self.m)):
             m = self.m[i]
             out = m(y[-1])
             y += (out,)
 
-        return self.cv2(ops.concat(y, axis=1))
+        return self.cv2(mint.concat(y, axis=1))
 
 
 class DWBottleneck(nn.Cell):
@@ -126,13 +125,12 @@ class DWC3(nn.Cell):
                 for _ in range(n)
             ]
         )
-        self.concat = ops.Concat(axis=1)
 
     def construct(self, x):
         c1 = self.conv1(x)
         c2 = self.m(c1)
         c3 = self.conv2(x)
-        c4 = self.concat((c2, c3))
+        c4 = mint.concat((c2, c3), 1)
         c5 = self.conv3(c4)
 
         return c5
@@ -162,7 +160,7 @@ class RepNCSP(nn.Cell):
         self.m = nn.SequentialCell(*(RepNBottleneck(c_, c_, shortcut, g, e=1.0, sync_bn=sync_bn) for _ in range(n)))
 
     def construct(self, x):
-        return self.cv3(ops.cat((self.m(self.cv1(x)), self.cv2(x)), 1))
+        return self.cv3(mint.cat((self.m(self.cv1(x)), self.cv2(x)), 1))
 
 
 class RepNCSPELAN4(nn.Cell):
@@ -179,12 +177,12 @@ class RepNCSPELAN4(nn.Cell):
         y = ()
         x = self.cv1(x)
         _c = x.shape[1] // 2
-        x_tuple = ops.split(x, axis=1, split_size_or_sections=_c)
+        x_tuple = mint.split(x, axis=1, split_size_or_sections=_c)
         y += x_tuple
         for m in [self.cv2, self.cv3]:
             out = m(y[-1])
             y += (out,)
-        return self.cv4(ops.cat(y, 1))
+        return self.cv4(mint.cat(y, 1))
 
 class SCDown(nn.Cell):
     def __init__(self, c1, c2, k, s):
@@ -215,10 +213,10 @@ class Attention(nn.Cell):
         q, k, v = qkv.view(B, self.num_heads, self.key_dim*2 + self.head_dim, N).split([self.key_dim, self.key_dim, self.head_dim], axis=2)
         
         attn = (
-            (ops.transpose(q, (0, 1, 3, 2)) @ k) * self.scale
+            (mint.permute(q, (0, 1, 3, 2)) @ k) * self.scale
         )
-        attn = ops.softmax(attn)
-        x = (v @ ops.transpose(attn, (0, 1, 3, 2))).view(B, C, H, W) + self.pe(v.reshape(B, C, H, W))
+        attn = mint.nn.functional.softmax(attn)
+        x = (v @ mint.permute(attn, (0, 1, 3, 2))).view(B, C, H, W) + self.pe(v.reshape(B, C, H, W))
         x = self.proj(x)
         return x
     
@@ -242,7 +240,7 @@ class PSA(nn.Cell):
         a, b = self.cv1(x).split((self.c, self.c), axis=1)
         b = b + self.attn(b)
         b = b + self.ffn(b)
-        return self.cv2(ops.concat((a, b), 1))
+        return self.cv2(mint.concat((a, b), 1))
 
 class RepVGGDW(nn.Cell):
     def __init__(self, ed):
@@ -250,10 +248,9 @@ class RepVGGDW(nn.Cell):
         self.conv = ConvNormAct(ed, ed, k=7, s=1, p=3, g=ed, act=False)
         self.conv1 = ConvNormAct(ed, ed, k=3, s=1, p=1, g=ed, act=False)
         self.dim = ed
-        self.act = nn.SiLU()
     
     def construct(self, x):
-        return self.act(self.conv(x) + self.conv1(x))
+        return mint.nn.functional.silu(self.conv(x) + self.conv1(x))
 
 class CIB(nn.Cell):
     # Standard bottleneck

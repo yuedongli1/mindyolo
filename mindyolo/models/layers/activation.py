@@ -1,7 +1,7 @@
 """
 Custom activation operators.
 """
-from mindspore import nn, ops
+from mindspore import nn, ops, mint
 
 
 class Swish(nn.Cell):
@@ -14,4 +14,4 @@ class Swish(nn.Cell):
         self.beta = beta
 
     def construct(self, x):
-        return x * ops.sigmoid(self.beta * x)
+        return x * mint.sigmoid(self.beta * x)

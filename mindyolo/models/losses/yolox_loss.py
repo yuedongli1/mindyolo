@@ -37,8 +37,8 @@ class YOLOXLoss(nn.Cell):
         self.zeros = ops.ZerosLike()
         self.sort_ascending = ops.Sort(descending=False)
         self.batch_matmul_trans_a = ops.BatchMatMul(transpose_a=True)
-        self.bce_loss = nn.BCEWithLogitsLoss(reduction="none")
-        self.l1_loss = nn.L1Loss(reduction="none")
+        self.bce_loss = mint.nn.BCEWithLogitsLoss(reduction="none")
+        self.l1_loss = mint.nn.L1Loss(reduction="none")
 
         self.strides = strides
         self.input_size = input_size
@@ -64,22 +64,22 @@ class YOLOXLoss(nn.Cell):
 
         anchor_strides_list = []
         for s, g in zip(self.strides, self.grids):
-            layer_stride = ops.ones((g,), ms.float32) * float(s)
+            layer_stride = mint.ones((g,), ms.float32) * float(s)
             anchor_strides_list.append(layer_stride)
-        anchor_strides = ops.concat(anchor_strides_list)
+        anchor_strides = mint.concat(anchor_strides_list)
         # (num_total_anchor, 2)
-        anchor_strides = ops.stack([anchor_strides, anchor_strides], axis=1)
+        anchor_strides = mint.stack([anchor_strides, anchor_strides], axis=1)
 
         anchor_center_pos_list = []
         for stride in self.strides:
             size_x = self.input_size[0] // stride
             size_y = self.input_size[1] // stride
             grid_x, grid_y = ops.meshgrid(mnp.arange(size_x), mnp.arange(size_y))
-            grids = ops.stack((grid_x, grid_y), 2).reshape(-1, 2)
+            grids = mint.stack((grid_x, grid_y), 2).reshape(-1, 2)
             anchor_center_pos_list.append(grids)
 
         # (num_total_anchor, 2)
-        anchor_center_pos = ops.concat(anchor_center_pos_list, 0)
+        anchor_center_pos = mint.concat(anchor_center_pos_list, 0)
 
         # to the scale of input img
         anchor_center_pos = (anchor_center_pos + 0.5) * anchor_strides
@@ -96,9 +96,9 @@ class YOLOXLoss(nn.Cell):
     def in_box(self, anchors, boxes):
         splitted_diff1 = anchors - boxes[..., :2]
         splitted_diff2 = boxes[..., 2:] - anchors
-        temp1 = ops.logical_and(splitted_diff1[..., 0] > 0.0, splitted_diff1[..., 1] > 0.0)
-        temp2 = ops.logical_and(splitted_diff2[..., 0] > 0.0, splitted_diff2[..., 1] > 0.0)
-        in_mask = ops.logical_and(temp1, temp2)
+        temp1 = mint.logical_and(splitted_diff1[..., 0] > 0.0, splitted_diff1[..., 1] > 0.0)
+        temp2 = mint.logical_and(splitted_diff2[..., 0] > 0.0, splitted_diff2[..., 1] > 0.0)
+        in_mask = mint.logical_and(temp1, temp2)
 
         return in_mask
 
@@ -129,7 +129,7 @@ class YOLOXLoss(nn.Cell):
 
         # 2. Gt core box mask
         # (bs, num_gt_max, num_total_anchor, 4)
-        gt_core_box_xyxy = ops.concat(
+        gt_core_box_xyxy = mint.concat(
             [
                 gt_box_center[:, :, None, :] - center_radius * self.anchor_strides,
                 gt_box_center[:, :, None, :] + center_radius * self.anchor_strides,
@@ -138,14 +138,14 @@ class YOLOXLoss(nn.Cell):
         )
         # (bs, num_gt_max, num_total_anchor)
         in_center_mask = self.in_box(self.anchor_center_pos, gt_core_box_xyxy)
-        in_center_box_mask = ops.logical_and(in_box_mask, in_center_mask)
+        in_center_box_mask = mint.logical_and(in_box_mask, in_center_mask)
 
         # 3. Fill padding pos with false (bs, num_gt_max, num_total_anchor)
-        expanded_gt_valid_mask = ops.repeat_elements(
-            gt_valid_mask[:, :, None].astype(ms.int32), rep=self.num_total_anchor, axis=2
+        expanded_gt_valid_mask = mint.repeat_interleave(
+            gt_valid_mask[:, :, None].astype(ms.int32), self.num_total_anchor, dim=2
         ).astype(ms.bool_)
-        in_center_box_mask = ops.logical_and(expanded_gt_valid_mask, in_center_box_mask)
-        pre_fg_mask = ops.logical_and(expanded_gt_valid_mask, in_box_mask.any(1, keep_dims=True))
+        in_center_box_mask = mint.logical_and(expanded_gt_valid_mask, in_center_box_mask)
+        pre_fg_mask = mint.logical_and(expanded_gt_valid_mask, in_box_mask.any(1, keep_dims=True))
         return in_center_box_mask, pre_fg_mask
 
     def construct(self, preds, targets, imgs=None):
@@ -173,60 +173,60 @@ class YOLOXLoss(nn.Cell):
         cls_preds = outputs[:, :, 5:]  # (batch_size, num_total_anchor, num_class)
 
         # process label
-        gt_classes = ops.cast(targets[:, :, 1:2].squeeze(-1), ms.int32)
+        gt_classes = mint.cast(targets[:, :, 1:2].squeeze(-1), ms.int32)
         pair_wise_ious = batch_box_iou(bbox_true, bbox_preds, xywh=True)  # (batch_size, gt_max, 8400)
         pair_wise_ious = pair_wise_ious * pre_fg_mask
-        pair_wise_iou_loss = -ops.log(pair_wise_ious + 1e-8) * pre_fg_mask
+        pair_wise_iou_loss = -mint.log(pair_wise_ious + 1e-8) * pre_fg_mask
         gt_classes_ = self.one_hot(gt_classes, self.num_class, self.on_value, self.off_value)
         # (bs, num_gt_max, num_class) -> (bs, num_gt_max, num_total_anchor, num_class)
-        gt_classes_expaned = ops.repeat_elements(self.unsqueeze(gt_classes_, 2), rep=total_num_anchors, axis=2)
+        gt_classes_expaned = mint.repeat_interleave(self.unsqueeze(gt_classes_, 2), total_num_anchors, dim=2)
         gt_classes_expaned = ops.stop_gradient(gt_classes_expaned)
-        cls_preds_ = ops.sigmoid(ops.repeat_elements(self.unsqueeze(cls_preds, 1), rep=gt_max, axis=1)) * ops.sigmoid(
-            ops.repeat_elements(self.unsqueeze(obj_preds, 1), rep=gt_max, axis=1)
+        cls_preds_ = mint.sigmoid(mint.repeat_interleave(self.unsqueeze(cls_preds, 1), gt_max, dim=1)) * mint.sigmoid(
+            mint.repeat_interleave(self.unsqueeze(obj_preds, 1), gt_max, dim=1)
         )
         # (bs, num_gt_max, num_total_anchor, num_class) -> (bs, num_gt_max, num_total_anchor)
         pair_wise_cls_loss = ops.reduce_sum(
-            ops.binary_cross_entropy(ops.sqrt(cls_preds_), gt_classes_expaned, None, reduction="none"), -1
+            mint.nn.binary_cross_entropy(mint.sqrt(cls_preds_), gt_classes_expaned, None, reduction="none"), -1
         )
 
         pair_wise_cls_loss = pair_wise_cls_loss * pre_fg_mask
         cost = pair_wise_cls_loss + 3.0 * pair_wise_iou_loss
-        punishment_cost = 1000.0 * (1.0 - ops.cast(is_inbox_and_incenter, ms.float32))
-        cost = ops.cast(cost + punishment_cost, ms.float16)
+        punishment_cost = 1000.0 * (1.0 - mint.cast(is_inbox_and_incenter, ms.float32))
+        cost = mint.cast(cost + punishment_cost, ms.float16)
         # dynamic k matching
         ious_in_boxes_matrix = pair_wise_ious  # (batch_size, gt_max, 8400)
-        ious_in_boxes_matrix = ops.cast(pre_fg_mask * ious_in_boxes_matrix, ms.float16)
-        topk_ious, _ = ops.top_k(ious_in_boxes_matrix, self.n_candidate_k, sorted=True)
+        ious_in_boxes_matrix = mint.cast(pre_fg_mask * ious_in_boxes_matrix, ms.float16)
+        topk_ious, _ = mint.top_k(ious_in_boxes_matrix, self.n_candidate_k, sorted=True)
 
         dynamic_ks = ops.reduce_sum(topk_ious, 2).astype(ms.int32).clip(min=1, max=total_num_anchors - 1)
 
         # (1, batch_size * gt_max, 2)
         batch_iter = Tensor(np.arange(0, batch_size * gt_max), ms.int32)
-        dynamic_ks_indices = ops.stack((batch_iter, dynamic_ks.reshape((-1,))), axis=1)
+        dynamic_ks_indices = mint.stack((batch_iter, dynamic_ks.reshape((-1,))), axis=1)
 
         dynamic_ks_indices = ops.stop_gradient(dynamic_ks_indices)
 
-        values, _ = ops.top_k(-cost, self.n_candidate_k, sorted=True)  # b_s , 50, 8400
-        values = ops.reshape(-values, (-1, self.n_candidate_k))
+        values, _ = mint.top_k(-cost, self.n_candidate_k, sorted=True)  # b_s , 50, 8400
+        values = mint.reshape(-values, (-1, self.n_candidate_k))
         max_neg_score = self.unsqueeze(ops.gather_nd(values, dynamic_ks_indices).reshape(batch_size, -1), 2)
         # positive sample for each gt
-        pos_mask = ops.cast(cost < max_neg_score, ms.float32)  # (batch_size, gt_num, 8400)
+        pos_mask = mint.cast(cost < max_neg_score, ms.float32)  # (batch_size, gt_num, 8400)
         pos_mask = pre_fg_mask * pos_mask
         # ----dynamic_k---- END-----------------------------------------------------------------------------------------
 
         # pick the one with the lower cost if a sample is positive for more than one gt
         cost_t = cost * pos_mask + (1.0 - pos_mask) * 2000.0
-        min_index = ops.argmin(cost_t, axis=1)
-        ret_posk = ops.transpose(ops.one_hot(min_index, gt_max, self.on_value, self.off_value), (0, 2, 1))
+        min_index = mint.argmin(cost_t, axis=1)
+        ret_posk = mint.permute(mint.nn.functional.one_hot(min_index, gt_max, self.on_value, self.off_value), (0, 2, 1))
         pos_mask = pos_mask * ret_posk
         pos_mask = ops.stop_gradient(pos_mask)
         # AA problem--------------END ----------------------------------------------------------------------------------
 
         # calculate target ---------------------------------------------------------------------------------------------
         # Cast precision
-        pos_mask = ops.cast(pos_mask, ms.float16)
-        bbox_true = ops.cast(bbox_true, ms.float16)
-        gt_classes_ = ops.cast(gt_classes_, ms.float16)
+        pos_mask = mint.cast(pos_mask, ms.float16)
+        bbox_true = mint.cast(bbox_true, ms.float16)
+        gt_classes_ = mint.cast(gt_classes_, ms.float16)
 
         reg_target = self.batch_matmul_trans_a(pos_mask, bbox_true)  # (batch_size, 8400, 4)
         pred_ious_this_matching = self.unsqueeze(ops.reduce_sum((ious_in_boxes_matrix * pos_mask), 1), -1)
@@ -250,8 +250,8 @@ class YOLOXLoss(nn.Cell):
             l1_target = self.get_l1_format(reg_target)
             l1_preds = self.get_l1_format(bbox_preds)
             l1_target = ops.stop_gradient(l1_target)
-            l1_target = ops.cast(l1_target, ms.float32)
-            l1_preds = ops.cast(l1_preds, ms.float32)
+            l1_target = mint.cast(l1_target, ms.float32)
+            l1_preds = mint.cast(l1_preds, ms.float32)
             loss_l1 = ops.reduce_sum(self.l1_loss(l1_preds, l1_target), -1) * obj_target
             loss_l1 = ops.reduce_sum(loss_l1)
         # calculate target -----------END-------------------------------------------------------------------------------
@@ -259,7 +259,7 @@ class YOLOXLoss(nn.Cell):
         loss_iou = (1 - iou * iou) * obj_target  # (bs, num_total_anchor)
         loss_iou = ops.reduce_sum(loss_iou)
 
-        loss_obj = self.bce_loss(ops.reshape(obj_preds, (-1, 1)), ops.reshape(obj_target, (-1, 1)))
+        loss_obj = self.bce_loss(mint.reshape(obj_preds, (-1, 1)), mint.reshape(obj_target, (-1, 1)))
         loss_obj = ops.reduce_sum(loss_obj)
 
         loss_cls = ops.reduce_sum(self.bce_loss(cls_preds, cls_target), -1) * obj_target
@@ -282,15 +282,15 @@ class YOLOXLoss(nn.Cell):
             self.summary("loss_obj", loss_obj)
             self.summary("loss_l1", loss_l1)
 
-        return loss_all, ops.stop_gradient(ops.stack((loss_all, loss_iou, loss_obj, loss_cls, loss_l1)))
+        return loss_all, ops.stop_gradient(mint.stack((loss_all, loss_iou, loss_obj, loss_cls, loss_l1)))
 
     def get_l1_format_single(self, reg_target, stride, eps):
         """calculate L1 loss related"""
         reg_target = reg_target / stride
         reg_target_xy = reg_target[:, :, :2]
         reg_target_wh = reg_target[:, :, 2:]
-        reg_target_wh = ops.log(reg_target_wh + eps)
-        return ops.concat((reg_target_xy, reg_target_wh), -1)
+        reg_target_wh = mint.log(reg_target_wh + eps)
+        return mint.concat((reg_target_xy, reg_target_wh), -1)
 
     def get_l1_format(self, reg_target, eps=1e-8):
         """calculate L1 loss related"""
@@ -302,5 +302,5 @@ class YOLOXLoss(nn.Cell):
         reg_target_m = self.get_l1_format_single(reg_target_m, self.strides[1], eps)
         reg_target_s = self.get_l1_format_single(reg_target_s, self.strides[2], eps)
 
-        l1_target = ops.concat([reg_target_l, reg_target_m, reg_target_s], axis=1)
+        l1_target = mint.concat([reg_target_l, reg_target_m, reg_target_s], axis=1)
         return l1_target

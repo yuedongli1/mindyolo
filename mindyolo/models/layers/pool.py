@@ -1,4 +1,4 @@
-from mindspore import nn
+from mindspore import nn, mint
 
 
 class MP(nn.Cell):
@@ -8,7 +8,7 @@ class MP(nn.Cell):
 
     def __init__(self, k=2):
         super(MP, self).__init__()
-        self.m = nn.MaxPool2d(kernel_size=k, stride=k)
+        self.m = mint.nn.MaxPool2d(kernel_size=k, stride=k)
 
     def construct(self, x):
         return self.m(x)
@@ -35,10 +35,9 @@ class MaxPool2d(nn.Cell):
     def __init__(self, kernel_size, stride, padding=0):
         super(MaxPool2d, self).__init__()
         assert isinstance(padding, int)
-        self.pad = nn.Pad(paddings=((0, 0), (0, 0), (padding, padding), (padding, padding)))
-        self.pool = nn.MaxPool2d(kernel_size=kernel_size, stride=stride)
+        self.pool = mint.nn.MaxPool2d(kernel_size=kernel_size, stride=stride)
 
     def construct(self, x):
-        x = self.pad(x)
+        x = mint.nn.functional.pad(x, (padding, padding, padding, padding))
         x = self.pool(x)
         return x

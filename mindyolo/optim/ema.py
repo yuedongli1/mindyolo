@@ -1,5 +1,5 @@
 import mindspore as ms
-from mindspore import Parameter, Tensor, nn, ops
+from mindspore import Parameter, Tensor, nn, ops, mint
 
 __all__ = ["EMA"]
 
@@ -26,7 +26,7 @@ class EMA(nn.Cell):
 
     def decay(self, x):
         # decay exponential ramp (to help early epochs)
-        return self.decay_value * (1 - ops.exp(ops.neg(x) / 2000))
+        return self.decay_value * (1 - mint.exp(mint.neg(x) / 2000))
 
     @ms.jit
     def update(self):

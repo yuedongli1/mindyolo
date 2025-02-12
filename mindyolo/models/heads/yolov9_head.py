@@ -3,7 +3,7 @@ import numpy as np
 
 import mindspore as ms
 import mindspore.numpy as mnp
-from mindspore import Parameter, Tensor, nn, ops
+from mindspore import Parameter, Tensor, nn, ops, mint
 
 from ..layers import DFL, ConvNormAct, Identity
 from ..layers.utils import meshgrid, make_divisible
@@ -34,7 +34,7 @@ class YOLOv9Head(nn.Cell):
                     [
                         ConvNormAct(x, c2, 3, sync_bn=sync_bn),
                         ConvNormAct(c2, c2, 3, g=4, sync_bn=sync_bn),
-                        nn.Conv2d(c2, 4 * self.reg_max, 1, group=4, has_bias=True),
+                        mint.nn.Conv2d(c2, 4 * self.reg_max, 1, group=4, has_bias=True),
                     ]
                 )
                 for x in ch[:self.nl]
@@ -46,7 +46,7 @@ class YOLOv9Head(nn.Cell):
                     [
                         ConvNormAct(x, c3, 3, sync_bn=sync_bn),
                         ConvNormAct(c3, c3, 3, sync_bn=sync_bn),
-                        nn.Conv2d(c3, self.nc, 1, has_bias=True),
+                        mint.nn.Conv2d(c3, self.nc, 1, has_bias=True),
                     ]
                 )
                 for x in ch[:self.nl]
@@ -58,7 +58,7 @@ class YOLOv9Head(nn.Cell):
                     [
                         ConvNormAct(x, c4, 3, sync_bn=sync_bn),
                         ConvNormAct(c4, c4, 3, g=4, sync_bn=sync_bn),
-                        nn.Conv2d(c4, 4 * self.reg_max, 1, group=4, has_bias=True),
+                        mint.nn.Conv2d(c4, 4 * self.reg_max, 1, group=4, has_bias=True),
                     ]
                 )
                 for x in ch[self.nl:]
@@ -70,7 +70,7 @@ class YOLOv9Head(nn.Cell):
                     [
                         ConvNormAct(x, c5, 3, sync_bn=sync_bn),
                         ConvNormAct(c5, c5, 3, sync_bn=sync_bn),
-                        nn.Conv2d(c5, self.nc, 1, has_bias=True),
+                        mint.nn.Conv2d(c5, self.nc, 1, has_bias=True),
                     ]
                 )
                 for x in ch[self.nl:]
@@ -84,8 +84,8 @@ class YOLOv9Head(nn.Cell):
         d1 = ()
         d2 = ()
         for i in range(self.nl):
-            d1 += (ops.concat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1),)
-            d2 += (ops.concat((self.cv4[i](x[self.nl+i]), self.cv5[i](x[self.nl+i])), 1),)
+            d1 += (mint.concat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1),)
+            d2 += (mint.concat((self.cv4[i](x[self.nl+i]), self.cv5[i](x[self.nl+i])), 1),)
 
         p = None
         if not self.training:
@@ -95,19 +95,19 @@ class YOLOv9Head(nn.Cell):
             _x = ()
             for i in range(len(d1)):
                 _x += (d1[i].view(shape[0], self.no, -1),)
-            _x = ops.concat(_x, 2)
+            _x = mint.concat(_x, 2)
             box, cls = _x[:, : self.reg_max * 4, :], _x[:, self.reg_max * 4: self.reg_max * 4 + self.nc, :]
-            dbox = self.dist2bbox(self.dfl(box), ops.expand_dims(_anchors, 0), xywh=True, axis=1) * _strides
+            dbox = self.dist2bbox(self.dfl(box), mint.unsqueeze(_anchors, 0), xywh=True, axis=1) * _strides
 
             _x2 = ()
             for i in range(len(d2)):
                 _x2 += (d2[i].view(shape[0], self.no, -1),)
-            _x2 = ops.concat(_x2, 2)
+            _x2 = mint.concat(_x2, 2)
             box2, cls2 = _x2[:, : self.reg_max * 4, :], _x2[:, self.reg_max * 4: self.reg_max * 4 + self.nc, :]
-            dbox2 = self.dist2bbox(self.dfl2(box2), ops.expand_dims(_anchors, 0), xywh=True, axis=1) * _strides
+            dbox2 = self.dist2bbox(self.dfl2(box2), mint.unsqueeze(_anchors, 0), xywh=True, axis=1) * _strides
 
-            p = (ops.concat((dbox, ops.Sigmoid()(cls)), 1), ops.concat((dbox2, ops.Sigmoid()(cls2)), 1))
-            p = (ops.transpose(p[0], (0, 2, 1)), ops.transpose(p[1], (0, 2, 1)))  # (bs, no-84, nbox) -> (bs, nbox, no-84)
+            p = (mint.concat((dbox, mint.sigmoid(cls)), 1), mint.concat((dbox2, mint.sigmoid(cls2)), 1))
+            p = (mint.permute(p[0], (0, 2, 1)), mint.permute(p[1], (0, 2, 1)))  # (bs, no-84, nbox) -> (bs, nbox, no-84)
 
         return (d1, d2) if self.training else (p, (d1, d2))
 
@@ -122,21 +122,21 @@ class YOLOv9Head(nn.Cell):
             sy = mnp.arange(h, dtype=dtype) + grid_cell_offset  # shift y
             # FIXME: Not supported on a specific model of machine
             sy, sx = meshgrid((sy, sx), indexing="ij")
-            anchor_points += (ops.stack((sx, sy), -1).view(-1, 2),)
-            stride_tensor += (ops.ones((h * w, 1), dtype) * stride,)
-        return ops.concat(anchor_points), ops.concat(stride_tensor)
+            anchor_points += (mint.stack((sx, sy), -1).view(-1, 2),)
+            stride_tensor += (mint.ones((h * w, 1), dtype) * stride,)
+        return mint.concat(anchor_points), mint.concat(stride_tensor)
 
     @staticmethod
     def dist2bbox(distance, anchor_points, xywh=True, axis=-1):
         """Transform distance(ltrb) to box(xywh or xyxy)."""
-        lt, rb = ops.split(distance, split_size_or_sections=2, axis=axis)
+        lt, rb = mint.split(distance, split_size_or_sections=2, axis=axis)
         x1y1 = anchor_points - lt
         x2y2 = anchor_points + rb
         if xywh:
             c_xy = (x1y1 + x2y2) / 2
             wh = x2y2 - x1y1
-            return ops.concat((c_xy, wh), axis)  # xywh bbox
-        return ops.concat((x1y1, x2y2), axis)  # xyxy bbox
+            return mint.concat((c_xy, wh), axis)  # xywh bbox
+        return mint.concat((x1y1, x2y2), axis)  # xyxy bbox
 
     def initialize_biases(self):
         # Initialize Detect() biases, WARNING: requires stride availability

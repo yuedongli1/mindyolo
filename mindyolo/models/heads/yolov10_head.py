@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import mindspore as ms
 import mindspore.numpy as mnp
-from mindspore import Parameter, Tensor, nn, ops
+from mindspore import Parameter, Tensor, nn, ops, mint
 
 from ..layers import DFL, ConvNormAct, Identity
 from ..layers.utils import meshgrid
@@ -32,7 +32,7 @@ class YOLOv10Head(nn.Cell):
                     [
                         ConvNormAct(x, c2, 3, sync_bn=sync_bn),
                         ConvNormAct(c2, c2, 3, sync_bn=sync_bn),
-                        nn.Conv2d(c2, 4 * self.reg_max, 1, has_bias=True),
+                        mint.nn.Conv2d(c2, 4 * self.reg_max, 1, has_bias=True),
                     ]
                 )
                 for x in ch
@@ -53,7 +53,7 @@ class YOLOv10Head(nn.Cell):
                                 ConvNormAct(c3, c3, 1)
                             ]
                         ),
-                        nn.Conv2d(c3, self.nc, 1, has_bias=True)
+                        mint.nn.Conv2d(c3, self.nc, 1, has_bias=True)
                     ]
                 )
                 for i, x in enumerate(ch)
@@ -78,14 +78,14 @@ class YOLOv10Head(nn.Cell):
         x_detach = [ops.stop_gradient(xi) for xi in x]
         one2one = ()
         for i in range(self.nl):
-            one2one += (ops.concat((self.one2one_cv2[i](x_detach[i]), self.one2one_cv3[i](x_detach[i])), 1),)
+            one2one += (mint.concat((self.one2one_cv2[i](x_detach[i]), self.one2one_cv3[i](x_detach[i])), 1),)
         one2many = ()
         for i in range(self.nl):
-            one2many += (ops.concat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1), )
+            one2many += (mint.concat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1), )
         if self.training:  # Training path
             return (one2many, one2one)
         y = self._inference(one2one)
-        y = self.postprocess(ops.transpose(y, (0, 2, 1)), self.max_det, self.nc)
+        y = self.postprocess(mint.transpose(y, (0, 2, 1)), self.max_det, self.nc)
         return (y, (one2many, one2one))
     
     def _inference(self, x):
@@ -97,12 +97,12 @@ class YOLOv10Head(nn.Cell):
         _x = ()
         for i in range(len(x)):
             _x += (x[i].view(shape[0], self.no, -1),)
-        _x = ops.concat(_x, 2)
+        _x = mint.concat(_x, 2)
         box, cls = _x[:, : self.reg_max * 4, :], _x[:, self.reg_max * 4 : self.reg_max * 4 + self.nc, :]
         # box, cls = ops.concat([xi.view(shape[0], self.no, -1) for xi in x], 2).split((self.reg_max * 4, self.nc), 1)
-        dbox = self.dist2bbox(self.dfl(box), ops.expand_dims(_anchors, 0), xywh=False, axis=1) * _strides
+        dbox = self.dist2bbox(self.dfl(box), mint.unsqueeze(_anchors, 0), xywh=False, axis=1) * _strides
         
-        return ops.concat((dbox, ops.Sigmoid()(cls)), 1)
+        return mint.concat((dbox, mint.sigmoid(cls)), 1)
 
     @staticmethod
     def make_anchors(feats, strides, grid_cell_offset=0.5):
@@ -115,21 +115,21 @@ class YOLOv10Head(nn.Cell):
             sy = mnp.arange(h, dtype=dtype) + grid_cell_offset  # shift y
             # FIXME: Not supported on a specific model of machine
             sy, sx = meshgrid((sy, sx), indexing="ij")
-            anchor_points += (ops.stack((sx, sy), -1).view(-1, 2),)
-            stride_tensor += (ops.ones((h * w, 1), dtype) * stride,)
-        return ops.concat(anchor_points), ops.concat(stride_tensor)
+            anchor_points += (mint.stack((sx, sy), -1).view(-1, 2),)
+            stride_tensor += (mint.ones((h * w, 1), dtype) * stride,)
+        return mint.concat(anchor_points), mint.concat(stride_tensor)
     
     @staticmethod
     def dist2bbox(distance, anchor_points, xywh=True, axis=-1):
         """Transform distance(ltrb) to box(xywh or xyxy)."""
-        lt, rb = ops.split(distance, split_size_or_sections=2, axis=axis)
+        lt, rb = mint.split(distance, split_size_or_sections=2, axis=axis)
         x1y1 = anchor_points - lt
         x2y2 = anchor_points + rb
         if xywh:
             c_xy = (x1y1 + x2y2) / 2
             wh = x2y2 - x1y1
-            return ops.concat((c_xy, wh), axis)  # xywh bbox
-        return ops.concat((x1y1, x2y2), axis)  # xyxy bbox
+            return mint.concat((c_xy, wh), axis)  # xywh bbox
+        return mint.concat((x1y1, x2y2), axis)  # xyxy bbox
 
     @staticmethod
     def postprocess(preds, max_det, nc=80):
@@ -148,15 +148,15 @@ class YOLOv10Head(nn.Cell):
         """
         batch_size, _, _ = preds.shape  # i.e. shape(16,8400,84)
         boxes, scores = preds.split([4, nc], axis=-1)
-        max_scores = ops.amax(scores, axis=-1)
-        max_scores, index = ops.topk(max_scores, max_det, dim=-1)
-        index = ops.expand_dims(index, -1)
-        boxes = ops.gather_elements(boxes, dim=1, index=ops.tile(index, (1, 1, boxes.shape[-1])))
-        scores = ops.gather_elements(scores, dim=1, index=ops.tile(index,(1, 1, nc)))
+        max_scores = mint.amax(scores, axis=-1)
+        max_scores, index = mint.topk(max_scores, max_det, dim=-1)
+        index = mint.unsqueeze(index, -1)
+        boxes = mint.gather(boxes, dim=1, index=mint.tile(index, (1, 1, boxes.shape[-1])))
+        scores = mint.gather(scores, dim=1, index=mint.tile(index,(1, 1, nc)))
 
-        scores, index = ops.topk(ops.flatten(scores, start_dim=1), max_det, dim=-1)
-        i = ops.arange(batch_size)[..., None]  # batch indices
-        return ops.cat([boxes[i, index // nc], scores[..., None], (index % nc)[..., None].float()], -1)
+        scores, index = mint.topk(mint.flatten(scores, start_dim=1), max_det, dim=-1)
+        i = mint.arange(batch_size)[..., None]  # batch indices
+        return mint.cat([boxes[i, index // nc], scores[..., None], (index % nc)[..., None].float()], -1)
     
     def initialize_biases(self):
         # Initialize Detect() biases, WARNING: requires stride availability

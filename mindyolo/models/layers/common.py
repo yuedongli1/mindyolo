@@ -1,7 +1,7 @@
 import numpy as np
 
 import mindspore as ms
-from mindspore import Tensor, nn, ops
+from mindspore import Tensor, nn, ops, mint
 
 
 class Shortcut(nn.Cell):
@@ -25,7 +25,7 @@ class Concat(nn.Cell):
         self.axis = axis
 
     def construct(self, x):
-        return ops.concat(x, self.axis)
+        return mint.concat(x, self.axis)
 
 
 class ReOrg(nn.Cell):
@@ -42,7 +42,7 @@ class ReOrg(nn.Cell):
         x2 = x[:, :, 1::2, ::2]
         x3 = x[:, :, ::2, 1::2]
         x4 = x[:, :, 1::2, 1::2]
-        out = ops.concat((x1, x2, x3, x4), 1)
+        out = mint.concat((x1, x2, x3, x4), 1)
         return out
 
 
@@ -55,10 +55,10 @@ class DFL(nn.Cell):
     # Integral module of Distribution Focal Loss (DFL) proposed in Generalized Focal Loss https://ieeexplore.ieee.org/document/9792391
     def __init__(self, c1=16):
         super().__init__()
-        self.conv = nn.Conv2d(c1, 1, 1, has_bias=False)
+        self.conv = mint.nn.Conv2d(c1, 1, 1, has_bias=False)
         self.conv.weight.requires_grad = False
         self.c1 = c1
-        self.softmax = ops.Softmax(axis=1)
+        self.softmax = mint.nn.Softmax(axis=1)
 
     def construct(self, x):
         b, c, a = x.shape  # batch, channels, anchors
