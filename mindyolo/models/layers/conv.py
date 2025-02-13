@@ -172,10 +172,10 @@ class DWConvNormAct(nn.Cell):
 class AConv(nn.Cell):
     def __init__(self, c1, c2, sync_bn=False):  # ch_in, ch_out, shortcut, kernels, groups, expand
         super(AConv, self).__init__()
-        self.avg_pool2d = mint.nn.AvgPool2d(2)
         self.cv1 = ConvNormAct(c1, c2, 3, 2, 1, sync_bn=sync_bn)
 
     def construct(self, x):
+        x = mint.nn.functional.avg_pool2d(x, 2, 1, 0, False, True)
         x = self.avg_pool2d(x)
         return self.cv1(x)
 

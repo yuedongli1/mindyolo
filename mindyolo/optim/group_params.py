@@ -263,7 +263,7 @@ def group_param_yolov8(
 def _group_param_common2(params):
     pg0, pg1 = [], []  # optimizer parameter groups
     for p in params:
-        if "bias" in p.name or "beta" in p.name or "gamma" in p.name:
+        if "bias" in p.name or "bn" in p.name:
             pg0.append(p)
         else:
             pg1.append(p)
@@ -276,9 +276,9 @@ def _group_param_common3(params):
     for p in params:
         if "bias" in p.name or "beta" in p.name:
             pg0.append(p)
-        elif "weight" in p.name:
-            pg1.append(p)
-        else:
+        elif "bn" in p.name:
             pg2.append(p)
+        else:
+            pg1.append(p)
 
     return pg0, pg1, pg2  # bias/beta, weight, others

@@ -58,7 +58,7 @@ class DFL(nn.Cell):
         self.conv = mint.nn.Conv2d(c1, 1, 1, bias=False)
         self.conv.weight.requires_grad = False
         self.c1 = c1
-        self.softmax = mint.nn.Softmax(axis=1)
+        self.softmax = mint.nn.Softmax(dim=1)
 
     def construct(self, x):
         b, c, a = x.shape  # batch, channels, anchors
