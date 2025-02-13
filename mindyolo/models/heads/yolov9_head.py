@@ -34,7 +34,7 @@ class YOLOv9Head(nn.Cell):
                     [
                         ConvNormAct(x, c2, 3, sync_bn=sync_bn),
                         ConvNormAct(c2, c2, 3, g=4, sync_bn=sync_bn),
-                        mint.nn.Conv2d(c2, 4 * self.reg_max, 1, group=4, has_bias=True),
+                        mint.nn.Conv2d(c2, 4 * self.reg_max, 1, groups=4),
                     ]
                 )
                 for x in ch[:self.nl]
@@ -46,7 +46,7 @@ class YOLOv9Head(nn.Cell):
                     [
                         ConvNormAct(x, c3, 3, sync_bn=sync_bn),
                         ConvNormAct(c3, c3, 3, sync_bn=sync_bn),
-                        mint.nn.Conv2d(c3, self.nc, 1, has_bias=True),
+                        mint.nn.Conv2d(c3, self.nc, 1),
                     ]
                 )
                 for x in ch[:self.nl]
@@ -58,7 +58,7 @@ class YOLOv9Head(nn.Cell):
                     [
                         ConvNormAct(x, c4, 3, sync_bn=sync_bn),
                         ConvNormAct(c4, c4, 3, g=4, sync_bn=sync_bn),
-                        mint.nn.Conv2d(c4, 4 * self.reg_max, 1, group=4, has_bias=True),
+                        mint.nn.Conv2d(c4, 4 * self.reg_max, 1, groups=4),
                     ]
                 )
                 for x in ch[self.nl:]
@@ -70,7 +70,7 @@ class YOLOv9Head(nn.Cell):
                     [
                         ConvNormAct(x, c5, 3, sync_bn=sync_bn),
                         ConvNormAct(c5, c5, 3, sync_bn=sync_bn),
-                        mint.nn.Conv2d(c5, self.nc, 1, has_bias=True),
+                        mint.nn.Conv2d(c5, self.nc, 1),
                     ]
                 )
                 for x in ch[self.nl:]
@@ -123,13 +123,13 @@ class YOLOv9Head(nn.Cell):
             # FIXME: Not supported on a specific model of machine
             sy, sx = meshgrid((sy, sx), indexing="ij")
             anchor_points += (mint.stack((sx, sy), -1).view(-1, 2),)
-            stride_tensor += (mint.ones((h * w, 1), dtype) * stride,)
+            stride_tensor += (mint.ones((h * w, 1), dtype=dtype) * stride,)
         return mint.concat(anchor_points), mint.concat(stride_tensor)
 
     @staticmethod
     def dist2bbox(distance, anchor_points, xywh=True, axis=-1):
         """Transform distance(ltrb) to box(xywh or xyxy)."""
-        lt, rb = mint.split(distance, split_size_or_sections=2, axis=axis)
+        lt, rb = mint.split(distance, split_size_or_sections=2, dim=axis)
         x1y1 = anchor_points - lt
         x2y2 = anchor_points + rb
         if xywh:

@@ -61,9 +61,9 @@ class YOLOXHead(nn.Cell):
                     ]
                 )
             )
-            self.cls_preds.append(mint.nn.Conv2d(hidden_ch, self.nc, 1, pad_mode="pad", has_bias=True))
-            self.reg_preds.append(mint.nn.Conv2d(hidden_ch, 4, 1, pad_mode="pad", has_bias=True))
-            self.obj_preds.append(mint.nn.Conv2d(hidden_ch, 1, 1, pad_mode="pad", has_bias=True))
+            self.cls_preds.append(mint.nn.Conv2d(hidden_ch, self.nc, 1))
+            self.reg_preds.append(mint.nn.Conv2d(hidden_ch, 4, 1))
+            self.obj_preds.append(mint.nn.Conv2d(hidden_ch, 1, 1))
 
     def construct(self, feat_list):
         assert isinstance(feat_list, (tuple, list)) and len(feat_list) == self.nl
@@ -101,7 +101,7 @@ class YOLOXHead(nn.Cell):
         """map to origin image scale for each fpn"""
         batch_size = output.shape[0]
         grid_size = output.shape[2:4]
-        stride = mint.cast(stride, output.dtype)
+        stride = ops.cast(stride, output.dtype)
 
         # reshape predictions
         output = mint.permute(output, (0, 2, 3, 1))  # (bs,85,80,80)-->(bs, 80, 80, 85)
@@ -124,4 +124,4 @@ class YOLOXHead(nn.Cell):
     def _make_grid(nx=20, ny=20, dtype=ms.float32):
         # FIXME: Not supported on a specific model of machine
         xv, yv = meshgrid((mnp.arange(nx), mnp.arange(ny)))
-        return mint.cast(mint.stack((xv, yv), 2).view((1, 1, ny, nx, 2)), dtype)
+        return ops.cast(mint.stack((xv, yv), 2).view((1, 1, ny, nx, 2)), dtype)

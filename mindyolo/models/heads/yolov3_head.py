@@ -41,7 +41,7 @@ class YOLOv3Head(nn.Cell):
         self.anchor_grid = Parameter(Tensor(anchor_grid, ms.float32), requires_grad=False)  # shape(nl,1,na,1,1,2)
 
         self.m = nn.CellList(
-            [mint.nn.Conv2d(x, self.no * self.na, 1, pad_mode="valid", has_bias=True) for x in ch]
+            [mint.nn.Conv2d(x, self.no * self.na, 1) for x in ch]
         )  # output conv
 
     def construct(self, x):
@@ -77,7 +77,7 @@ class YOLOv3Head(nn.Cell):
     def _make_grid(nx=20, ny=20, dtype=ms.float32):
         # FIXME: Not supported on a specific model of machine
         xv, yv = meshgrid((mnp.arange(nx), mnp.arange(ny)))
-        return mint.cast(mint.stack((xv, yv), 2).view((1, 1, ny, nx, 2)), dtype)
+        return ops.cast(mint.stack((xv, yv), 2).view((1, 1, ny, nx, 2)), dtype)
 
     @staticmethod
     def _check_anchor_order(anchors, anchor_grid, stride):

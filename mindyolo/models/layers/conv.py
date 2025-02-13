@@ -43,7 +43,7 @@ class ConvNormAct(nn.Cell):
     ):  # ch_in, ch_out, kernel, stride, padding, groups
         super(ConvNormAct, self).__init__()
         self.conv = mint.nn.Conv2d(
-            c1, c2, k, s, pad_mode="pad", padding=autopad(k, p, d), group=g, dilation=d, has_bias=False
+            c1, c2, k, s, padding=autopad(k, p, d), groups=g, dilation=d, bias=False
         )
 
         if sync_bn:
@@ -107,12 +107,12 @@ class RepConv(nn.Cell):
         self.rbr_identity = BatchNorm(num_features=c1, momentum=(1 - 0.03), eps=1e-3) if bn and c2 == c1 and s == 1 else None
         self.rbr_dense = nn.SequentialCell(
             [
-                mint.nn.Conv2d(c1, c2, k, s, pad_mode="pad", padding=autopad(k, p), group=g, has_bias=False),
+                mint.nn.Conv2d(c1, c2, k, s, padding=autopad(k, p), groups=g, bias=False),
                 BatchNorm(num_features=c2, momentum=momentum, eps=eps),
             ]
         )
         self.rbr_1x1 = nn.SequentialCell(
-            mint.nn.Conv2d(c1, c2, 1, s, pad_mode="pad", padding=padding_11, group=g, has_bias=False),
+            mint.nn.Conv2d(c1, c2, 1, s, padding=padding_11, groups=g, bias=False),
             BatchNorm(num_features=c2, momentum=momentum, eps=eps),
         )
 
@@ -225,7 +225,7 @@ class CBLinear(nn.Cell):
     def __init__(self, c1, c2s, k=1, s=1, p=None, g=1):  # ch_in, ch_outs, kernel, stride, padding, groups
         super(CBLinear, self).__init__()
         self.c2s = c2s
-        self.conv = mint.nn.Conv2d(c1, sum(c2s), k, s, pad_mode="pad", padding=autopad(k, p), group=g, has_bias=True)
+        self.conv = mint.nn.Conv2d(c1, sum(c2s), k, s, padding=autopad(k, p), groups=g, bias=True)
 
     def construct(self, x):
         outs = self.conv(x).split(self.c2s, axis=1)

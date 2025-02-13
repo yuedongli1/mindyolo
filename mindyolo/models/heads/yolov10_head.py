@@ -32,7 +32,7 @@ class YOLOv10Head(nn.Cell):
                     [
                         ConvNormAct(x, c2, 3, sync_bn=sync_bn),
                         ConvNormAct(c2, c2, 3, sync_bn=sync_bn),
-                        mint.nn.Conv2d(c2, 4 * self.reg_max, 1, has_bias=True),
+                        mint.nn.Conv2d(c2, 4 * self.reg_max, 1),
                     ]
                 )
                 for x in ch
@@ -53,7 +53,7 @@ class YOLOv10Head(nn.Cell):
                                 ConvNormAct(c3, c3, 1)
                             ]
                         ),
-                        mint.nn.Conv2d(c3, self.nc, 1, has_bias=True)
+                        mint.nn.Conv2d(c3, self.nc, 1)
                     ]
                 )
                 for i, x in enumerate(ch)
@@ -116,13 +116,13 @@ class YOLOv10Head(nn.Cell):
             # FIXME: Not supported on a specific model of machine
             sy, sx = meshgrid((sy, sx), indexing="ij")
             anchor_points += (mint.stack((sx, sy), -1).view(-1, 2),)
-            stride_tensor += (mint.ones((h * w, 1), dtype) * stride,)
+            stride_tensor += (mint.ones((h * w, 1), dtype=dtype) * stride,)
         return mint.concat(anchor_points), mint.concat(stride_tensor)
     
     @staticmethod
     def dist2bbox(distance, anchor_points, xywh=True, axis=-1):
         """Transform distance(ltrb) to box(xywh or xyxy)."""
-        lt, rb = mint.split(distance, split_size_or_sections=2, axis=axis)
+        lt, rb = mint.split(distance, split_size_or_sections=2, dim=axis)
         x1y1 = anchor_points - lt
         x2y2 = anchor_points + rb
         if xywh:

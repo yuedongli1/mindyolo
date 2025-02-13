@@ -80,9 +80,9 @@ class YOLOv3Loss(nn.Cell):
         # Losses
         for layer_index, pi in enumerate(p):  # layer index, layer predictions
             tmask = tmasks[layer_index]
-            b, a, gj, gi = mint.split(indices[layer_index] * tmask[None, :], split_size_or_sections=1, axis=0)  # image, anchor, gridy, gridx
+            b, a, gj, gi = mint.split(indices[layer_index] * tmask[None, :], split_size_or_sections=1, dim=0)  # image, anchor, gridy, gridx
             b, a, gj, gi = b.view(-1), a.view(-1), gj.view(-1), gi.view(-1)
-            tobj = mint.zeros(pi.shape[:4], pi.dtype)  # target obj
+            tobj = mint.zeros(pi.shape[:4], dtype=pi.dtype)  # target obj
 
             n = b.shape[0]  # number of targets
             if n:
@@ -130,15 +130,15 @@ class YOLOv3Loss(nn.Cell):
         mask_t = targets[:, 1] >= 0
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         tcls, tbox, indices, anch, tmasks = (), (), (), (), ()
-        gain = mint.ones(7, ms.int32)  # normalized to gridspace gain
+        gain = mint.ones(7, dtype=ms.int32)  # normalized to gridspace gain
         ai = mint.tile(mnp.arange(na).view(-1, 1), (1, nt))  # shape: (na, nt)
-        ai = mint.cast(ai, targets.dtype)
+        ai = ops.cast(ai, targets.dtype)
         targets = mint.concat(
             (mint.tile(targets, (na, 1, 1)), ai[:, :, None]), 2
         )  # append anchor indices # shape: (na, nt, 7)
 
         g = 0.5  # bias
-        off = mint.cast(self._off, targets.dtype) * g  # offsets
+        off = ops.cast(self._off, targets.dtype) * g  # offsets
 
         for i in range(self.nl):
             anchors, shape = self.anchors[i], p[i].shape
@@ -180,9 +180,9 @@ class YOLOv3Loss(nn.Cell):
             j = mint.stack((center, j_l, k_m))
             t = mint.tile(t, (3, 1, 1))  # shape(5, *, 7)
             t = t.view(-1, 7)
-            mask_m_t = (mint.cast(j, ms.int32) * mint.cast(mask_m_t[None, :], ms.int32)).view(-1)
+            mask_m_t = (ops.cast(j, ms.int32) * ops.cast(mask_m_t[None, :], ms.int32)).view(-1)
             offsets = mint.zeros_like(gxy)[None, :, :] + off[:, None, :]  # (1,*,2) + (5,1,2) -> (5,na*nt,2)
-            offsets_new = mint.zeros((3,) + offsets.shape[1:], offsets.dtype)
+            offsets_new = mint.zeros((3,) + offsets.shape[1:], dtype=offsets.dtype)
             # offsets_new[0, :, :] = offsets[0, :, :]
             offsets_new[1:2, :, :] = mint.where(tag1.astype(ms.bool_), offsets[1, :, :], offsets[3, :, :])
             offsets_new[2:3, :, :] = mint.where(tag2.astype(ms.bool_), offsets[2, :, :], offsets[4, :, :])
@@ -191,13 +191,13 @@ class YOLOv3Loss(nn.Cell):
 
             # Define
             b, c, gxy, gwh, a = (
-                mint.cast(t[:, 0], ms.int32),
-                mint.cast(t[:, 1], ms.int32),
+                ops.cast(t[:, 0], ms.int32),
+                ops.cast(t[:, 1], ms.int32),
                 t[:, 2:4],
                 t[:, 4:6],
-                mint.cast(t[:, 6], ms.int32),
+                ops.cast(t[:, 6], ms.int32),
             )  # (image, class), grid xy, grid wh, anchors
-            gij = mint.cast(gxy - offsets, ms.int32)
+            gij = ops.cast(gxy - offsets, ms.int32)
             gij = gij[:]
             gi, gj = gij[:, 0], gij[:, 1]  # grid indices
             gi = gi.clip(0, shape[3] - 1)

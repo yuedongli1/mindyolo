@@ -35,9 +35,10 @@ class MaxPool2d(nn.Cell):
     def __init__(self, kernel_size, stride, padding=0):
         super(MaxPool2d, self).__init__()
         assert isinstance(padding, int)
+        self.padding = padding
         self.pool = mint.nn.MaxPool2d(kernel_size=kernel_size, stride=stride)
 
     def construct(self, x):
-        x = mint.nn.functional.pad(x, (padding, padding, padding, padding))
+        x = mint.nn.functional.pad(x, (self.padding, self.padding, self.padding, self.padding))
         x = self.pool(x)
         return x

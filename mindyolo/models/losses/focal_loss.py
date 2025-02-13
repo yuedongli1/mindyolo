@@ -79,7 +79,6 @@ class BCEWithLogitsLoss(nn.Cell):
         super(BCEWithLogitsLoss, self).__init__()
         self.loss_fcn = mint.nn.BCEWithLogitsLoss(weight=bce_weight, pos_weight=bce_pos_weight, reduction="none")
         self.reduction = reduction  # default mean
-        assert self.loss_fcn.reduction == "none"  # required to apply FL to each element
 
     def construct(self, pred, true, mask=None):
         ori_dtype = pred.dtype

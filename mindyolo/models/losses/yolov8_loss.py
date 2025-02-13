@@ -40,7 +40,7 @@ class YOLOv8Loss(nn.Cell):
             feats: list of tensor, feats[i] shape: (bs, nc+reg_max*4, hi, wi)
             targets: [image_idx,cls,x,y,w,h], shape: (bs, gt_max, 6)
         """
-        loss = mint.zeros(3, ms.float32)  # box, cls, dfl
+        loss = mint.zeros(3, dtype=ms.float32)  # box, cls, dfl
         batch_size = feats[0].shape[0]
         _x = ()
         for xi in feats:
@@ -81,7 +81,7 @@ class YOLOv8Loss(nn.Cell):
 
         # cls loss
         # loss[1] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
-        loss[1] = self.bce(pred_scores, mint.cast(target_scores, dtype)).sum() / target_scores_sum  # BCE
+        loss[1] = self.bce(pred_scores, ops.cast(target_scores, dtype)).sum() / target_scores_sum  # BCE
 
         # bbox loss
         # if fg_mask.sum():
@@ -126,7 +126,7 @@ class YOLOv8Loss(nn.Cell):
     @staticmethod
     def dist2bbox(distance, anchor_points, xywh=True, axis=-1):
         """Transform distance(ltrb) to box(xywh or xyxy)."""
-        lt, rb = mint.split(distance, split_size_or_sections=2, axis=axis)
+        lt, rb = mint.split(distance, split_size_or_sections=2, dim=axis)
         x1y1 = anchor_points - lt
         x2y2 = anchor_points + rb
         if xywh:
@@ -146,7 +146,7 @@ class YOLOv8Loss(nn.Cell):
             sy = mnp.arange(h, dtype=dtype) + grid_cell_offset  # shift y
             sy, sx = ops.meshgrid(sy, sx, indexing="ij")
             anchor_points += (mint.stack((sx, sy), -1).view(-1, 2),)
-            stride_tensor += (mint.ones((h * w, 1), dtype) * stride,)
+            stride_tensor += (mint.ones((h * w, 1), dtype=dtype) * stride,)
         return mint.concat(anchor_points), mint.concat(stride_tensor)
 
 
@@ -168,7 +168,7 @@ class YOLOv8SegLoss(YOLOv8Loss):
             feats: list of tensor, feats[i] shape: (bs, nc+reg_max*4, hi, wi)
             targets: [image_idx,cls,x,y,w,h], shape: (bs, gt_max, 6)
         """
-        loss = mint.zeros(4, ms.float32)  # box, cls, dfl, mask
+        loss = mint.zeros(4, dtype=ms.float32)  # box, cls, dfl, mask
         # (bs, nc+reg_max*4, hi, wi), (bs, k, hi*wi), (bs, k, 138, 138); k = 32;
         feats, pred_masks, proto = preds # x, mc, p;
         batch_size, _, mask_h, mask_w = proto.shape  # batch size, number of masks, mask height, mask width
@@ -215,7 +215,7 @@ class YOLOv8SegLoss(YOLOv8Loss):
         target_scores_sum = mint.maximum(target_scores.sum(), 1)
 
         # cls loss
-        loss[2] = self.bce(pred_scores, mint.cast(target_scores, dtype)).sum() / target_scores_sum  # BCE
+        loss[2] = self.bce(pred_scores, ops.cast(target_scores, dtype)).sum() / target_scores_sum  # BCE
 
         # bbox loss
         loss[0], loss[3] = self.bbox_loss(
@@ -237,8 +237,8 @@ class YOLOv8SegLoss(YOLOv8Loss):
                 _cond = _mask[None, :, :] == (_mask_idx[:, None, None] + 1)
                 gt_mask = mint.where(
                     _cond,
-                    mint.ones(_cond.shape, pred_masks.dtype),
-                    mint.zeros(_cond.shape, pred_masks.dtype)
+                    mint.ones(_cond.shape, dtype=pred_masks.dtype),
+                    mint.zeros(_cond.shape, dtype=pred_masks.dtype)
                 )
             else:
                 gt_mask = _mask[_mask_idx]  # (n_gt, mask_h, mask_w) -> (N, mask_h, mask_w)/(max_object_num, mask_h, mask_w)
@@ -274,9 +274,7 @@ class YOLOv8SegLoss(YOLOv8Loss):
         ).view(-1, *proto.shape[1:]).astype(_dtype)  # (n, 32) @ (32,80,80) -> (n,80,80)
 
         loss = mint.nn.functional.binary_cross_entropy_with_logits(
-            pred_mask, gt_mask, reduction='none',
-            weight=mint.ones(1, pred_mask.dtype),
-            pos_weight=mint.ones(1, pred_mask.dtype)
+            pred_mask, gt_mask, reduction='none'
         )
 
         single_loss = (self.crop_mask(loss, xyxy).mean(axis=(1, 2)) / mint.clamp(area, min=1e-4))
@@ -339,14 +337,14 @@ class BboxLoss(nn.Cell):
             loss_dfl = self._df_loss(pred_dist.view(-1, self.reg_max), target_ltrb) * weight * fg_mask[:, :, None]
             loss_dfl = loss_dfl.sum() / target_scores_sum
         else:
-            loss_dfl = mint.zeros(1, ms.float32)
+            loss_dfl = mint.zeros(1, dtype=ms.float32)
 
         return loss_iou, loss_dfl
 
     @staticmethod
     def bbox2dist(anchor_points, bbox, reg_max):
         """Transform bbox(xyxy) to dist(ltrb)."""
-        x1y1, x2y2 = mint.split(bbox, split_size_or_sections=2, axis=-1)
+        x1y1, x2y2 = mint.split(bbox, split_size_or_sections=2, dim=-1)
         return mint.concat((anchor_points - x1y1, x2y2 - anchor_points), -1).clip(0, reg_max - 0.01)  # dist (lt, rb)
 
     @staticmethod
@@ -361,7 +359,7 @@ class BboxLoss(nn.Cell):
         Return:
             loss: (bs, N, 1)
         """
-        tl = mint.cast(target, ms.int32)  # target left
+        tl = ops.cast(target, ms.int32)  # target left
         tr = tl + 1  # target right
         wl = tr - target  # weight left
         wr = 1 - wl  # weight right
@@ -419,13 +417,13 @@ class TaskAlignedAssigner(nn.Cell):
         norm_align_metric = (align_metric * pos_overlaps / (pos_align_metrics + self.eps)).max(-2).expand_dims(-1)
         target_scores = target_scores * norm_align_metric
 
-        return target_labels, target_bboxes, target_scores, mint.cast(fg_mask, ms.bool_), target_gt_idx
+        return target_labels, target_bboxes, target_scores, ops.cast(fg_mask, ms.bool_), target_gt_idx
 
     def get_pos_mask(self, pd_scores, pd_bboxes, gt_labels, gt_bboxes, anc_points, mask_gt):
         align_metric, overlaps = self.get_box_metrics(pd_scores, pd_bboxes, gt_labels, gt_bboxes)  # (b, n_gt, N)
         mask_in_gts = self.select_candidates_in_gts(anc_points, gt_bboxes, mask_gt)  # (b, n_gt, N)
         mask_topk = self.select_topk_candidates(
-            align_metric * mask_in_gts, topk_mask=mint.cast(mint.tile(mask_gt[..., None], (1, 1, self.topk)), ms.bool_)
+            align_metric * mask_in_gts, topk_mask=ops.cast(mint.tile(mask_gt[..., None], (1, 1, self.topk)), ms.bool_)
         )  # (b, n_gt, h*w)
         mask_pos = mask_topk * mask_in_gts * mask_gt[:, :, None]  # (b, n_gt, N)
 
@@ -441,16 +439,16 @@ class TaskAlignedAssigner(nn.Cell):
         """
 
         num_anchors = metrics.shape[-1]  # N
-        topk_metrics, topk_idxs = mint.top_k(metrics, self.topk)  # (b, n_gt, topk)
+        topk_metrics, topk_idxs = mint.topk(metrics, self.topk)  # (b, n_gt, topk)
         if topk_mask is None:
             topk_mask = mint.tile(topk_metrics.max(-1, keepdims=True) > self.eps, (1, 1, self.topk))  # (b, n_gt, topk)
         topk_idxs = mnp.where(topk_mask, topk_idxs, mint.zeros_like(topk_idxs))  # (b, n_gt, topk)
-        is_in_topk = mint.nn.functional.one_hot(topk_idxs, num_anchors, mint.ones(1, ms.float32), mint.zeros(1, ms.float32)).sum(
+        is_in_topk = mint.nn.functional.one_hot(topk_idxs, num_anchors).sum(
             -2
         )  # (b, n_gt, topk, N) -> (b, n_gt, N)
         # filter invalid bboxes
-        is_in_topk = mnp.where(is_in_topk > 1, mint.zeros(1, ms.float32), is_in_topk)
-        is_in_topk = mint.cast(is_in_topk, metrics.dtype)
+        is_in_topk = mnp.where(is_in_topk > 1, mint.zeros(1, dtype=ms.float32), is_in_topk)
+        is_in_topk = ops.cast(is_in_topk, metrics.dtype)
 
         return is_in_topk
 
@@ -458,9 +456,9 @@ class TaskAlignedAssigner(nn.Cell):
         bs, n_gt, _ = gt_labels.shape
 
         ind0 = mint.tile(mnp.arange(bs, dtype=ms.int32).view(-1, 1), (1, n_gt)).view(-1, 1)  # (b*n_gt, 1)
-        ind1 = mint.cast(gt_labels, ms.int32).squeeze(-1).view(-1, 1)  # (b*n_gt, 1)
+        ind1 = ops.cast(gt_labels, ms.int32).squeeze(-1).view(-1, 1)  # (b*n_gt, 1)
         bbox_scores = ops.gather_nd(
-            pd_scores.transpose((0, 2, 1)), mint.concat((ind0, ind1), axis=1)
+            pd_scores.transpose((0, 2, 1)), mint.concat((ind0, ind1), dim=1)
         )  # (b, N, 80)->(b, 80, N)->(b*n_gt, N)
         bbox_scores = bbox_scores.view(bs, n_gt, -1)
 
@@ -484,7 +482,7 @@ class TaskAlignedAssigner(nn.Cell):
         bs, n_gt, _ = gt_labels.shape
         batch_ind = mnp.arange(bs)[:, None]  # (b, 1)
         target_gt_idx = target_gt_idx + batch_ind * n_gt  # (b, N)
-        target_labels = mint.cast(gt_labels, ms.int32).flatten()[target_gt_idx]  # (b, N)
+        target_labels = ops.cast(gt_labels, ms.int32).flatten()[target_gt_idx]  # (b, N)
 
         # assigned target boxes
         target_bboxes = gt_bboxes.view(-1, 4)[target_gt_idx]  # (b, n_gt, 4) -> (b * n_gt, 4) -> (b, N)
@@ -492,10 +490,10 @@ class TaskAlignedAssigner(nn.Cell):
         # assigned target scores
         target_labels.clip(0, None)
         target_scores = mint.nn.functional.one_hot(
-            target_labels, self.num_classes, on_value=mint.ones(1, ms.int32), off_value=mint.zeros(1, ms.int32)
+            target_labels, self.num_classes
         )  # (b, N, 80)
         fg_scores_mask = mint.tile(fg_mask[:, :, None], (1, 1, self.num_classes))  # (b, N) -> (b, N, 80)
-        target_scores = mnp.where(fg_scores_mask > 0, target_scores, mint.zeros(1, ms.int32))
+        target_scores = mnp.where(fg_scores_mask > 0, target_scores, mint.zeros(1, dtype=ms.int32))
 
         return target_labels, target_bboxes, target_scores
 
@@ -512,9 +510,9 @@ class TaskAlignedAssigner(nn.Cell):
         """
         n_anchors = xy_centers.shape[0]
         bs, n_boxes, _ = gt_bboxes.shape
-        x, y = mint.split(xy_centers.view(1, -1, 2), split_size_or_sections=1, axis=-1)  # (1, N, 2) -> (1, N, 1)
+        x, y = mint.split(xy_centers.view(1, -1, 2), split_size_or_sections=1, dim=-1)  # (1, N, 2) -> (1, N, 1)
         left, top, right, bottom = mint.split(
-            gt_bboxes.view(-1, 1, 4), split_size_or_sections=1, axis=-1
+            gt_bboxes.view(-1, 1, 4), split_size_or_sections=1, dim=-1
         )  # (bs, n_gt, 4)->(bs*n_gt, 1, 4)->(bs*n_gt, 1, 1)
         select = mint.logical_and(
             mint.logical_and((x - left) > eps, (y - top) > eps), mint.logical_and((right - x) > eps, (bottom - y) > eps)
@@ -523,7 +521,7 @@ class TaskAlignedAssigner(nn.Cell):
         )  # (bs, n_gt, N)
 
         if mask_gt is not None:
-            select = mint.cast(select, ms.float32) * mint.cast(mask_gt[..., None], ms.float32)
+            select = ops.cast(select, ms.float32) * ops.cast(mask_gt[..., None], ms.float32)
 
         return select
 
@@ -547,9 +545,9 @@ class TaskAlignedAssigner(nn.Cell):
         mask_multi_gts = mint.tile(mint.unsqueeze(fg_mask > 1, 1), (1, n_gt, 1))  # (b, n_gt, N)
         max_overlaps_idx = overlaps.argmax(1)  # (b, n_gt, N) -> (b, N)
         is_max_overlaps = mint.nn.functional.one_hot(
-            max_overlaps_idx, n_gt, on_value=mint.ones(1, ms.int32), off_value=mint.zeros(1, ms.int32)
+            max_overlaps_idx, n_gt
         )  # (b, N, n_gt)
-        is_max_overlaps = mint.cast(
+        is_max_overlaps = ops.cast(
             mint.permute(is_max_overlaps, (0, 2, 1)), overlaps.dtype
         )  # (b, N, n_gt) -> (b, n_gt, N)
         mask_pos = mnp.where(mask_multi_gts, is_max_overlaps, mask_pos)

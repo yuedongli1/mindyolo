@@ -55,7 +55,7 @@ class DFL(nn.Cell):
     # Integral module of Distribution Focal Loss (DFL) proposed in Generalized Focal Loss https://ieeexplore.ieee.org/document/9792391
     def __init__(self, c1=16):
         super().__init__()
-        self.conv = mint.nn.Conv2d(c1, 1, 1, has_bias=False)
+        self.conv = mint.nn.Conv2d(c1, 1, 1, bias=False)
         self.conv.weight.requires_grad = False
         self.c1 = c1
         self.softmax = mint.nn.Softmax(axis=1)

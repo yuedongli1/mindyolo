@@ -82,14 +82,14 @@ class C2f(nn.Cell):
         y = ()
         x = self.cv1(x)
         _c = x.shape[1] // 2
-        x_tuple = mint.split(x, axis=1, split_size_or_sections=_c)
+        x_tuple = mint.split(x, dim=1, split_size_or_sections=_c)
         y += x_tuple
         for i in range(len(self.m)):
             m = self.m[i]
             out = m(y[-1])
             y += (out,)
 
-        return self.cv2(mint.concat(y, axis=1))
+        return self.cv2(mint.concat(y, dim=1))
 
 
 class DWBottleneck(nn.Cell):
@@ -177,7 +177,7 @@ class RepNCSPELAN4(nn.Cell):
         y = ()
         x = self.cv1(x)
         _c = x.shape[1] // 2
-        x_tuple = mint.split(x, axis=1, split_size_or_sections=_c)
+        x_tuple = mint.split(x, dim=1, split_size_or_sections=_c)
         y += x_tuple
         for m in [self.cv2, self.cv3]:
             out = m(y[-1])

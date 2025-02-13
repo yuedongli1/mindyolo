@@ -2,7 +2,7 @@ import numpy as np
 
 import mindspore as ms
 import mindspore.numpy as mnp
-from mindspore import Tensor, nn, ops
+from mindspore import Tensor, nn, ops, mint
 
 from mindyolo.models.registry import register_model
 from .focal_loss import BCEWithLogitsLoss, smooth_BCE
@@ -77,11 +77,11 @@ class YOLOv4Loss(nn.Cell):
         for layer_index, yolo_out in enumerate(p):  # layer index, layer predictions
             pi = yolo_out[0]
             tmask = tmasks[layer_index]
-            b, a, gj, gi = mint.split(indices[layer_index] * tmask[None, :], split_size_or_sections=1, axis=0)  # image, anchor, gridy, gridx
+            b, a, gj, gi = mint.split(indices[layer_index] * tmask[None, :], split_size_or_sections=1, dim=0)  # image, anchor, gridy, gridx
             b, a, gj, gi = b.view(-1), a.view(-1), gj.view(-1), gi.view(-1)
 
             pi_shape = pi.shape
-            y_true = mint.zeros((pi_shape[0], pi_shape[1], pi_shape[2], pi_shape[3], 1), pi.dtype)
+            y_true = mint.zeros((pi_shape[0], pi_shape[1], pi_shape[2], pi_shape[3], 1), dtype=pi.dtype)
             y_true[b, gj, gi, a][:, 0] = 1.0
 
             n = b.shape[0]  # number of targets
@@ -113,7 +113,7 @@ class YOLOv4Loss(nn.Cell):
             iou = self.iou(mint.unsqueeze(pred_boxes, -2), gt_box)
             best_iou = self.reduce_max(iou, -1)
             ignore_mask = best_iou < self.ignore_threshold
-            ignore_mask = mint.cast(ignore_mask, ms.float32)
+            ignore_mask = ops.cast(ignore_mask, ms.float32)
             ignore_mask = mint.unsqueeze(ignore_mask, -1)
             ignore_mask = ops.stop_gradient(ignore_mask)
             object_mask = y_true[:, :, :, :, 0:1]
@@ -142,9 +142,9 @@ class YOLOv4Loss(nn.Cell):
         mask_t = targets[:, 1] >= 0
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         indices, anch, tmasks = (), (), ()
-        gain_wh = mint.ones(7, ms.int32)  # normalized to gridspace gain
+        gain_wh = mint.ones(7, dtype=ms.int32)  # normalized to gridspace gain
         ai = mint.tile(mnp.arange(na).view(-1, 1), (1, nt))  # shape: (na, nt)
-        ai = mint.cast(ai, targets.dtype)
+        ai = ops.cast(ai, targets.dtype)
         targets_9_anchors = mint.concat(
             (mint.tile(targets, (na, 1, 1)), ai[:, :, None]), 2
         )  # append anchor indices # shape: (na, nt, 7)
@@ -154,10 +154,10 @@ class YOLOv4Loss(nn.Cell):
         # Match targets to anchors
         t_wh = targets_9_anchors * gain_wh
         # Matches
-        gt_box = mint.zeros((na, nt, 4), ms.float32)
+        gt_box = mint.zeros((na, nt, 4), dtype=ms.float32)
         gt_box[..., 2:] = t_wh[..., 4:6]
 
-        anchor_shapes = mint.zeros((na, 1, 4), ms.float32)
+        anchor_shapes = mint.zeros((na, 1, 4), dtype=ms.float32)
         anchor_shapes[..., 2:] = mint.unsqueeze(self.anchors, 1)
         anch_ious = bbox_iou(gt_box, anchor_shapes).squeeze()
 
@@ -168,24 +168,24 @@ class YOLOv4Loss(nn.Cell):
 
         anchor_scales = self.anchors.reshape((self.nl, -1, 2))
         ai = mint.tile(mnp.arange(na // self.nl).view(-1, 1), (1, nt))  # shape: (na, nt)
-        ai = mint.cast(ai, targets.dtype)
+        ai = ops.cast(ai, targets.dtype)
         targets_3_anchors = mint.concat((mint.tile(targets, (na // self.nl, 1, 1)), ai[:, :, None]), 2)
         for i in range(self.nl):
             anchors, shape = anchor_scales[i], p[i][0].shape
-            gain_xy = mint.ones(7, ms.int32)  # normalized to gridspace gain
+            gain_xy = mint.ones(7, dtype=ms.int32)  # normalized to gridspace gain
             gain_xy[2:4] = get_tensor(shape, targets_3_anchors.dtype)[[2, 1]]  # xyxy gain
 
             t = targets_3_anchors * gain_xy
-            mask_m_t = (j_l[i] * mint.cast(mask_t[None, :], ms.int32)).view(-1)
+            mask_m_t = (j_l[i] * ops.cast(mask_t[None, :], ms.int32)).view(-1)
             t = t.view(-1, 7)
 
             # Define
             b, gxy, a = (
-                mint.cast(t[:, 0], ms.int32),
+                ops.cast(t[:, 0], dtype=ms.int32),
                 t[:, 2:4],
-                mint.cast(t[:, 6], ms.int32),
+                ops.cast(t[:, 6], dtype=ms.int32),
             )  # (image, class), grid xy, grid wh, anchors
-            gij = mint.cast(gxy, ms.int32)
+            gij = ops.cast(gxy, dtype=ms.int32)
             gij = gij[:]
             gi, gj = gij[:, 0], gij[:, 1]  # grid indices
             gi = gi.clip(0, shape[2] - 1)
@@ -197,7 +197,7 @@ class YOLOv4Loss(nn.Cell):
             tmasks += (mask_m_t,)
 
         targets_3_anchors = targets_3_anchors.view(-1, 7)
-        tcls = mint.cast(targets_3_anchors[:, 1], ms.int32)  # class
+        tcls = ops.cast(targets_3_anchors[:, 1], ms.int32)  # class
         tbox = targets_3_anchors[:, 2:6]  # box
 
         return (

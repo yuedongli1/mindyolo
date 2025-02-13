@@ -42,7 +42,7 @@ class YOLOv9Loss(nn.Cell):
         Args:
             targets: [image_idx,cls,x,y,w,h], shape: (bs, gt_max, 6)
         """
-        loss = mint.zeros(3, ms.float32)  # box, cls, dfl
+        loss = mint.zeros(3, dtype=ms.float32)  # box, cls, dfl
         feats, feats2 = p[0], p[1]
         batch_size = feats[0].shape[0]
 
@@ -107,9 +107,9 @@ class YOLOv9Loss(nn.Cell):
 
         # cls loss
         # loss[1] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
-        loss[1] = self.bce(pred_scores, mint.cast(target_scores, dtype)).sum() / target_scores_sum  # BCE
+        loss[1] = self.bce(pred_scores, ops.cast(target_scores, dtype)).sum() / target_scores_sum  # BCE
         loss[1] *= 0.25
-        loss[1] += self.bce(pred_scores2, mint.cast(target_scores2, dtype)).sum() / target_scores_sum2  # BCE
+        loss[1] += self.bce(pred_scores2, ops.cast(target_scores2, dtype)).sum() / target_scores_sum2  # BCE
 
         # bbox loss
         # if fg_mask.sum():
@@ -162,7 +162,7 @@ class YOLOv9Loss(nn.Cell):
     @staticmethod
     def dist2bbox(distance, anchor_points, xywh=True, axis=-1):
         """Transform distance(ltrb) to box(xywh or xyxy)."""
-        lt, rb = mint.split(distance, split_size_or_sections=2, axis=axis)
+        lt, rb = mint.split(distance, split_size_or_sections=2, dim=axis)
         x1y1 = anchor_points - lt
         x2y2 = anchor_points + rb
         if xywh:
@@ -182,7 +182,7 @@ class YOLOv9Loss(nn.Cell):
             sy = mnp.arange(h, dtype=dtype) + grid_cell_offset  # shift y
             sy, sx = ops.meshgrid(sy, sx, indexing="ij")
             anchor_points += (mint.stack((sx, sy), -1).view(-1, 2),)
-            stride_tensor += (mint.ones((h * w, 1), dtype) * stride,)
+            stride_tensor += (mint.ones((h * w, 1), dtype=dtype) * stride,)
         return mint.concat(anchor_points), mint.concat(stride_tensor)
 
 

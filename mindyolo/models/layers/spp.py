@@ -45,7 +45,7 @@ class SPPF(nn.Cell):
         c_ = c1 // 2  # hidden channels
         self.conv1 = ConvNormAct(c1, c_, 1, 1, act=act, momentum=momentum, eps=eps, sync_bn=sync_bn)
         self.conv2 = ConvNormAct(c_ * 4, c2, 1, 1, act=act, momentum=momentum, eps=eps, sync_bn=sync_bn)
-        self.m = mint.nn.MaxPool2d(kernel_size=k, stride=1, pad_mode="same")
+        self.m = mint.nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
 
     def construct(self, x):
         x = self.conv1(x)

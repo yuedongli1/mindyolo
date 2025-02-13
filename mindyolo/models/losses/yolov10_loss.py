@@ -1,4 +1,4 @@
-from mindspore import nn, ops, mint
+from mindspore import nn, ops
 
 from .yolov8_loss import YOLOv8Loss
 from mindyolo.models.registry import register_model

@@ -2,7 +2,7 @@ import numpy as np
 
 import mindspore as ms
 import mindspore.numpy as mnp
-from mindspore import Parameter, Tensor, nn, ops
+from mindspore import Parameter, Tensor, nn, ops, mint
 
 from mindyolo.models.registry import register_model
 from .focal_loss import BCEWithLogitsLoss, FocalLoss, smooth_BCE
@@ -92,7 +92,7 @@ class YOLOv7Loss(nn.Cell):
             ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets
 
             # Regression
-            grid = mint.stack([gi, gj], axis=1)
+            grid = mint.stack([gi, gj], dim=1)
             pxy = mint.sigmoid(ps[:, :2]) * 2.0 - 0.5
             pwh = (mint.sigmoid(ps[:, 2:4]) * 2) ** 2 * anchors[i]
             pbox = mint.concat((pxy, pwh), 1)  # predicted box
@@ -105,7 +105,7 @@ class YOLOv7Loss(nn.Cell):
             tobj[b, a, gj, gi] = ((1.0 - self.gr) + self.gr * ops.stop_gradient(iou).clip(0, None)) * tmask  # iou ratio
 
             # Classification
-            selected_tcls = mint.cast(targets[i][:, 1], ms.int32)
+            selected_tcls = ops.cast(targets[i][:, 1], ms.int32)
             if self.nc > 1:  # cls loss (only if multiple classes)
                 t = mint.ones_like(ps[:, 5:]) * self.cn  # targets
                 t[mnp.arange(n, dtype=ms.int32), selected_tcls] = self.cp
@@ -156,17 +156,17 @@ class YOLOv7Loss(nn.Cell):
             _this_indices *= _this_mask[None, :]
             _this_anch *= _this_mask[:, None]
 
-            b, a, gj, gi = mint.split(_this_indices, split_size_or_sections=1, axis=0)
+            b, a, gj, gi = mint.split(_this_indices, split_size_or_sections=1, dim=0)
             b, a, gj, gi = b.view(-1), a.view(-1), gj.view(-1), gi.view(-1)
 
             fg_pred = pi[b, a, gj, gi]
             p_obj += (fg_pred[:, 4:5].view(batch_size, 3 * na * n_gt_max, 1),)
             p_cls += (fg_pred[:, 5:].view(batch_size, 3 * na * n_gt_max, -1),)
 
-            grid = mint.stack((gi, gj), axis=1)
+            grid = mint.stack((gi, gj), dim=1)
             pxy = (mint.sigmoid(fg_pred[:, :2]) * 2.0 - 0.5 + grid) * self.stride[i]  # / 8.
             pwh = (mint.sigmoid(fg_pred[:, 2:4]) * 2) ** 2 * _this_anch * self.stride[i]  # / 8.
-            pxywh = mint.concat((pxy, pwh), axis=-1)
+            pxywh = mint.concat((pxy, pwh), dim=-1)
             pxyxy = xywh2xyxy(pxywh)
 
             b, a, gj, gi, pxyxy, _this_anch, _this_mask = (
@@ -186,15 +186,15 @@ class YOLOv7Loss(nn.Cell):
             all_anch += (_this_anch,)
             all_tmasks += (_this_mask,)
 
-        pxyxys = mint.concat(pxyxys, axis=1)  # nl * (bs, 5*na*gt_max, 4) -> cat -> (bs, c, 4) # nt = bs * gt_max
-        p_obj = mint.concat(p_obj, axis=1)
-        p_cls = mint.concat(p_cls, axis=1)  # nl * (bs, 5*na*gt_max, 80) -> (bs, nl*5*na*gt_max, 80)
-        all_b = mint.concat(all_b, axis=1)  # nl * (bs, 5*na*gt_max) -> (bs, nl*5*na*gt_max)
-        all_a = mint.concat(all_a, axis=1)
-        all_gj = mint.concat(all_gj, axis=1)
-        all_gi = mint.concat(all_gi, axis=1)
-        all_anch = mint.concat(all_anch, axis=1)
-        all_tmasks = mint.concat(all_tmasks, axis=1)  # (bs, nl*5*na*gt_max)
+        pxyxys = mint.concat(pxyxys, dim=1)  # nl * (bs, 5*na*gt_max, 4) -> cat -> (bs, c, 4) # nt = bs * gt_max
+        p_obj = mint.concat(p_obj, dim=1)
+        p_cls = mint.concat(p_cls, dim=1)  # nl * (bs, 5*na*gt_max, 80) -> (bs, nl*5*na*gt_max, 80)
+        all_b = mint.concat(all_b, dim=1)  # nl * (bs, 5*na*gt_max) -> (bs, nl*5*na*gt_max)
+        all_a = mint.concat(all_a, dim=1)
+        all_gj = mint.concat(all_gj, dim=1)
+        all_gi = mint.concat(all_gi, dim=1)
+        all_anch = mint.concat(all_anch, dim=1)
+        all_tmasks = mint.concat(all_tmasks, dim=1)  # (bs, nl*5*na*gt_max)
 
         this_mask = all_tmasks[:, None, :] * this_mask[:, :, None]  # (bs, gt_max, nl*5*na*gt_max,)
 
@@ -202,19 +202,17 @@ class YOLOv7Loss(nn.Cell):
         pair_wise_iou = batch_box_iou(txyxy, pxyxys) * this_mask  # (bs, gt_max, nl*5*na*gt_max,)
         pair_wise_iou_loss = -mint.log(pair_wise_iou + EPS)
 
-        v, _ = mint.top_k(pair_wise_iou, 10)  # (bs, gt_max, 10)
-        dynamic_ks = mint.cast(v.sum(-1).clip(1, 10), ms.int32)  # (bs, gt_max)
+        v, _ = mint.topk(pair_wise_iou, 10)  # (bs, gt_max, 10)
+        dynamic_ks = ops.cast(v.sum(-1).clip(1, 10), ms.int32)  # (bs, gt_max)
 
         # (bs, gt_max, 80)
         gt_cls_per_image = mint.nn.functional.one_hot(
-            indices=mint.cast(this_target[:, :, 1], ms.int32),
-            depth=self.nc,
-            on_value=mint.ones(1, p_cls.dtype),
-            off_value=mint.zeros(1, p_cls.dtype),
+            ops.cast(this_target[:, :, 1], ms.int32),
+            self.nc,
         )
         # (bs, gt_max, nl*5*na*gt_max, 80)
         gt_cls_per_image = mint.tile(
-            mint.unsqueeze(mint.cast(gt_cls_per_image, p_cls.dtype), 2), (1, 1, pxyxys.shape[1], 1)
+            mint.unsqueeze(ops.cast(gt_cls_per_image, p_cls.dtype), 2), (1, 1, pxyxys.shape[1], 1)
         )
 
         cls_preds_ = mint.sqrt(mint.sigmoid(p_cls) * mint.sigmoid(p_obj))
@@ -226,8 +224,6 @@ class YOLOv7Loss(nn.Cell):
         pair_wise_cls_loss = mint.nn.functional.binary_cross_entropy_with_logits(
             mint.log(y / (1 - y) + EPS),
             gt_cls_per_image,
-            mint.ones(1, cls_preds_.dtype),
-            mint.ones(1, cls_preds_.dtype),
             reduction="none",
         ).sum(
             -1
@@ -235,27 +231,27 @@ class YOLOv7Loss(nn.Cell):
 
         cost = pair_wise_cls_loss + 3.0 * pair_wise_iou_loss
         cost = cost * this_mask
-        cost += CLIP_VALUE * (1.0 - mint.cast(this_mask, cost.dtype))
+        cost += CLIP_VALUE * (1.0 - ops.cast(this_mask, cost.dtype))
 
-        sort_cost, sort_idx = mint.top_k(-cost, 10, sorted=True)  # (bs, gt_max, 10)
+        sort_cost, sort_idx = mint.topk(-cost, 10, sorted=True)  # (bs, gt_max, 10)
         sort_cost = -sort_cost
         pos_idx = mint.stack((mnp.arange(batch_size * n_gt_max, dtype=ms.int32), dynamic_ks.view(-1) - 1), -1)
         pos_v = ops.gather_nd(sort_cost.view(batch_size * n_gt_max, 10), pos_idx).view(batch_size, n_gt_max)
-        matching_matrix = mint.cast(cost <= pos_v[:, :, None], ms.int32) * this_mask
+        matching_matrix = ops.cast(cost <= pos_v[:, :, None], ms.int32) * this_mask
 
         # delete reduplicate match label, one anchor only match one gt
         cost_argmin = mnp.argmin(cost, axis=1)  # (bs, nl*5*na*gt_max)
         anchor_matching_gt_mask = mint.nn.functional.one_hot(
-            cost_argmin, n_gt_max, mint.ones(1, ms.float16), mint.zeros(1, ms.float16), axis=-1
+            cost_argmin, n_gt_max
         ).transpose(
             0, 2, 1
         )  # (bs, gt_max, nl*5*na*gt_max)
-        matching_matrix = matching_matrix * mint.cast(anchor_matching_gt_mask, matching_matrix.dtype)
+        matching_matrix = matching_matrix * ops.cast(anchor_matching_gt_mask, matching_matrix.dtype)
 
         fg_mask_inboxes = (
             matching_matrix.astype(ms.float16).sum(1) > 0.0
         )  # (bs, gt_max, nl*5*na*gt_max) -> (bs, nl*5*na*gt_max)
-        all_tmasks = all_tmasks * mint.cast(fg_mask_inboxes, ms.int32)  # (bs, nl*5*na*gt_max)
+        all_tmasks = all_tmasks * ops.cast(fg_mask_inboxes, ms.int32)  # (bs, nl*5*na*gt_max)
         matched_gt_inds = matching_matrix.argmax(1).astype(ms.int32)  # (bs, gt_max, nl*5*na*gt_max) -> (bs, nl*5*na*gt_max)
         matched_bs_inds = mint.tile(
             mnp.arange(batch_size, dtype=ms.int32)[:, None], (1, matching_matrix.shape[2])
@@ -286,12 +282,12 @@ class YOLOv7Loss(nn.Cell):
         mask_t = targets[:, 1] >= 0  # (bs*gt_max,)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         indices, anch, tmasks = (), (), ()
-        gain = mint.ones(7, ms.int32)  # normalized to gridspace gain
+        gain = mint.ones(7, dtype=ms.int32)  # normalized to gridspace gain
         ai = mint.tile(mnp.arange(na, dtype=targets.dtype).view(na, 1), (1, nt))  # shape: (na, nt)
         targets = mint.concat((mint.tile(targets, (na, 1, 1)), ai[:, :, None]), 2)  # append anchor indices # (na, nt, 7)
 
         g = 0.5  # bias
-        off = mint.cast(self._off, targets.dtype) * g  # offsets
+        off = ops.cast(self._off, targets.dtype) * g  # offsets
 
         for i in range(self.nl):
             anchors, shape = self.anchors[i], p[i].shape
@@ -330,11 +326,11 @@ class YOLOv7Loss(nn.Cell):
             k_m = mint.logical_or(k, m).astype(ms.int32)
             center = mint.ones_like(j_l)
             j = mint.stack((center, j_l, k_m))
-            mask_m_t = (mint.cast(j, ms.int32) * mint.cast(mask_m_t[None, :], ms.int32)).view(-1)
+            mask_m_t = (ops.cast(j, ms.int32) * ops.cast(mask_m_t[None, :], ms.int32)).view(-1)
             t = mint.tile(t, (3, 1, 1))  # shape(5, *, 7)
             t = t.view(-1, 7)
             offsets = mint.zeros_like(gxy)[None, :, :] + off[:, None, :]  # (1,*,2) + (5,1,2) -> (5,na*nt,2)
-            offsets_new = mint.zeros((3,) + offsets.shape[1:], offsets.dtype)
+            offsets_new = mint.zeros((3,) + offsets.shape[1:], dtype=offsets.dtype)
             offsets_new[1, :, :] = mint.where(tag1.astype(ms.bool_), offsets[1, ...], offsets[3, ...])
             offsets_new[2, :, :] = mint.where(tag2.astype(ms.bool_), offsets[2, ...], offsets[4, ...])
             offsets = offsets_new
@@ -342,13 +338,13 @@ class YOLOv7Loss(nn.Cell):
 
             # Define
             b, c, gxy, gwh, a = (
-                mint.cast(t[:, 0], ms.int32),
-                mint.cast(t[:, 1], ms.int32),
+                ops.cast(t[:, 0], ms.int32),
+                ops.cast(t[:, 1], ms.int32),
                 t[:, 2:4],
                 t[:, 4:6],
-                mint.cast(t[:, 6], ms.int32),
+                ops.cast(t[:, 6], ms.int32),
             )  # (image, class), grid xy, grid wh, anchors # b: (5*na*nt,), gxy: (5*na*nt, 2)
-            gij = mint.cast(gxy - offsets, ms.int32)
+            gij = ops.cast(gxy - offsets, ms.int32)
             gi, gj = gij[:, 0], gij[:, 1]  # grid indices
             gi = gi.clip(0, shape[3] - 1)
             gj = gj.clip(0, shape[2] - 1)
@@ -465,7 +461,7 @@ class YOLOv7AuxLoss(nn.Cell):
             n = b.shape[0]  # number of targets
             ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets
             # 1.1. Regression
-            grid = mint.stack([gi, gj], axis=1)
+            grid = mint.stack([gi, gj], dim=1)
             pxy = mint.sigmoid(ps[:, :2]) * 2.0 - 0.5
             pwh = (mint.sigmoid(ps[:, 2:4]) * 2) ** 2 * anchors[i]
             pbox = mint.concat((pxy, pwh), 1)  # predicted box
@@ -478,7 +474,7 @@ class YOLOv7AuxLoss(nn.Cell):
             obji = self.BCEobj(pi[..., 4], tobj)
             lobj += obji * self.balance[i]  # obj loss
             # 1.3. Classification
-            selected_tcls = mint.cast(targets[i][:, 1], ms.int32)
+            selected_tcls = ops.cast(targets[i][:, 1], ms.int32)
             if self.nc > 1:  # cls loss (only if multiple classes)
                 t = mint.ones_like(ps[:, 5:]) * self.cn  # targets
                 t[mnp.arange(n, dtype=ms.int32), selected_tcls] = self.cp
@@ -488,7 +484,7 @@ class YOLOv7AuxLoss(nn.Cell):
             n_aux = b_aux.shape[0]  # number of targets
             ps_aux = pi[b_aux, a_aux, gj_aux, gi_aux]  # prediction subset corresponding to targets
             # 2.1. Regression
-            grid_aux = mint.stack([gi_aux, gj_aux], axis=1)
+            grid_aux = mint.stack([gi_aux, gj_aux], dim=1)
             pxy_aux = mint.sigmoid(ps_aux[:, :2]) * 2.0 - 0.5
             pwh_aux = (mint.sigmoid(ps_aux[:, 2:4]) * 2) ** 2 * anchors_aux[i]
             pbox_aux = mint.concat((pxy_aux, pwh_aux), 1)  # predicted box
@@ -505,7 +501,7 @@ class YOLOv7AuxLoss(nn.Cell):
             obji_aux = self.BCEobj(pi_aux[..., 4], tobj_aux)
             lobj += 0.25 * obji_aux * self.balance[i]  # obj loss
             # 1.3. Classification
-            selected_tcls_aux = mint.cast(targets_aux[i][:, 1], ms.int32)
+            selected_tcls_aux = ops.cast(targets_aux[i][:, 1], ms.int32)
             if self.nc > 1:  # cls loss (only if multiple classes)
                 t_aux = mint.ones_like(ps_aux[:, 5:]) * self.cn  # targets
                 t_aux[mnp.arange(n_aux, dtype=ms.int32), selected_tcls_aux] = self.cp
@@ -555,17 +551,17 @@ class YOLOv7AuxLoss(nn.Cell):
             _this_indices *= _this_mask[None, :]
             _this_anch *= _this_mask[:, None]
 
-            b, a, gj, gi = mint.split(_this_indices, split_size_or_sections=1, axis=0)
+            b, a, gj, gi = mint.split(_this_indices, split_size_or_sections=1, dim=0)
             b, a, gj, gi = b.view(-1), a.view(-1), gj.view(-1), gi.view(-1)
 
             fg_pred = pi[b, a, gj, gi]
             p_obj += (fg_pred[:, 4:5].view(batch_size, 3 * na * n_gt_max, 1),)
             p_cls += (fg_pred[:, 5:].view(batch_size, 3 * na * n_gt_max, -1),)
 
-            grid = mint.stack((gi, gj), axis=1)
+            grid = mint.stack((gi, gj), dim=1)
             pxy = (mint.sigmoid(fg_pred[:, :2]) * 2.0 - 0.5 + grid) * self.stride[i]  # / 8.
             pwh = (mint.sigmoid(fg_pred[:, 2:4]) * 2) ** 2 * _this_anch * self.stride[i]  # / 8.
-            pxywh = mint.concat((pxy, pwh), axis=-1)
+            pxywh = mint.concat((pxy, pwh), dim=-1)
             pxyxy = xywh2xyxy(pxywh)
 
             b, a, gj, gi, pxyxy, _this_anch, _this_mask = (
@@ -585,15 +581,15 @@ class YOLOv7AuxLoss(nn.Cell):
             all_anch += (_this_anch,)
             all_tmasks += (_this_mask,)
 
-        pxyxys = mint.concat(pxyxys, axis=1)  # nl * (bs, 5*na*gt_max, 4) -> cat -> (bs, c, 4) # nt = bs * gt_max
-        p_obj = mint.concat(p_obj, axis=1)
-        p_cls = mint.concat(p_cls, axis=1)  # nl * (bs, 5*na*gt_max, 80) -> (bs, nl*5*na*gt_max, 80)
-        all_b = mint.concat(all_b, axis=1)  # nl * (bs, 5*na*gt_max) -> (bs, nl*5*na*gt_max)
-        all_a = mint.concat(all_a, axis=1)
-        all_gj = mint.concat(all_gj, axis=1)
-        all_gi = mint.concat(all_gi, axis=1)
-        all_anch = mint.concat(all_anch, axis=1)
-        all_tmasks = mint.concat(all_tmasks, axis=1)  # (bs, nl*5*na*gt_max)
+        pxyxys = mint.concat(pxyxys, dim=1)  # nl * (bs, 5*na*gt_max, 4) -> cat -> (bs, c, 4) # nt = bs * gt_max
+        p_obj = mint.concat(p_obj, dim=1)
+        p_cls = mint.concat(p_cls, dim=1)  # nl * (bs, 5*na*gt_max, 80) -> (bs, nl*5*na*gt_max, 80)
+        all_b = mint.concat(all_b, dim=1)  # nl * (bs, 5*na*gt_max) -> (bs, nl*5*na*gt_max)
+        all_a = mint.concat(all_a, dim=1)
+        all_gj = mint.concat(all_gj, dim=1)
+        all_gi = mint.concat(all_gi, dim=1)
+        all_anch = mint.concat(all_anch, dim=1)
+        all_tmasks = mint.concat(all_tmasks, dim=1)  # (bs, nl*5*na*gt_max)
 
         this_mask = all_tmasks[:, None, :] * this_mask[:, :, None]  # (bs, gt_max, nl*5*na*gt_max,)
 
@@ -602,19 +598,17 @@ class YOLOv7AuxLoss(nn.Cell):
         pair_wise_iou_loss = -mint.log(pair_wise_iou + EPS)
 
         # Top 20 iou sum for aux, default 10
-        v, _ = mint.top_k(pair_wise_iou, 20)  # (bs, gt_max, 20)
-        dynamic_ks = mint.cast(v.sum(-1).clip(1, 20), ms.int32)  # (bs, gt_max)
+        v, _ = mint.topk(pair_wise_iou, 20)  # (bs, gt_max, 20)
+        dynamic_ks = ops.cast(v.sum(-1).clip(1, 20), ms.int32)  # (bs, gt_max)
 
         # (bs, gt_max, 80)
         gt_cls_per_image = mint.nn.functional.one_hot(
-            indices=mint.cast(this_target[:, :, 1], ms.int32),
-            depth=self.nc,
-            on_value=mint.ones(1, p_cls.dtype),
-            off_value=mint.zeros(1, p_cls.dtype),
+            ops.cast(this_target[:, :, 1], ms.int32),
+            self.nc,
         )
         # (bs, gt_max, nl*5*na*gt_max, 80)
         gt_cls_per_image = mint.tile(
-            mint.unsqueeze(mint.cast(gt_cls_per_image, p_cls.dtype), 2), (1, 1, pxyxys.shape[1], 1)
+            mint.unsqueeze(ops.cast(gt_cls_per_image, p_cls.dtype), 2), (1, 1, pxyxys.shape[1], 1)
         )
 
         cls_preds_ = mint.sqrt(mint.sigmoid(p_cls) * mint.sigmoid(p_obj))
@@ -625,37 +619,34 @@ class YOLOv7AuxLoss(nn.Cell):
 
         pair_wise_cls_loss = mint.nn.functional.one_hot(
             mint.log(y / (1 - y) + EPS),
-            gt_cls_per_image,
-            mint.ones(1, cls_preds_.dtype),
-            mint.ones(1, cls_preds_.dtype),
-            reduction="none",
+            gt_cls_per_image
         ).sum(
             -1
         )  # (bs, gt_max, nl*5*na*gt_max)
 
         cost = pair_wise_cls_loss + 3.0 * pair_wise_iou_loss
         cost = cost * this_mask
-        cost += CLIP_VALUE * (1.0 - mint.cast(this_mask, cost.dtype))
+        cost += CLIP_VALUE * (1.0 - ops.cast(this_mask, cost.dtype))
 
-        sort_cost, sort_idx = mint.top_k(-cost, 20, sorted=True)  # (bs, gt_max, 20)
+        sort_cost, sort_idx = mint.topk(-cost, 20, sorted=True)  # (bs, gt_max, 20)
         sort_cost = -sort_cost
         pos_idx = mint.stack((mnp.arange(batch_size * n_gt_max, dtype=ms.int32), dynamic_ks.view(-1) - 1), -1)
         pos_v = ops.gather_nd(sort_cost.view(batch_size * n_gt_max, 20), pos_idx).view(batch_size, n_gt_max)
-        matching_matrix = mint.cast(cost <= pos_v[:, :, None], ms.int32) * this_mask
+        matching_matrix = ops.cast(cost <= pos_v[:, :, None], ms.int32) * this_mask
 
         # delete reduplicate match label, one anchor only match one gt
         cost_argmin = mnp.argmin(cost, axis=1)  # (bs, nl*5*na*gt_max)
         anchor_matching_gt_mask = mint.nn.functional.one_hot(
-            cost_argmin, n_gt_max, mint.ones(1, ms.float16), mint.zeros(1, ms.float16), axis=-1
+            cost_argmin, n_gt_max
         ).transpose(
             0, 2, 1
         )  # (bs, gt_max, nl*5*na*gt_max)
-        matching_matrix = matching_matrix * mint.cast(anchor_matching_gt_mask, matching_matrix.dtype)
+        matching_matrix = matching_matrix * ops.cast(anchor_matching_gt_mask, matching_matrix.dtype)
 
         fg_mask_inboxes = (
             matching_matrix.astype(ms.float16).sum(1) > 0.0
         )  # (bs, gt_max, nl*5*na*gt_max) -> (bs, nl*5*na*gt_max)
-        all_tmasks = all_tmasks * mint.cast(fg_mask_inboxes, ms.int32)  # (bs, nl*5*na*gt_max)
+        all_tmasks = all_tmasks * ops.cast(fg_mask_inboxes, ms.int32)  # (bs, nl*5*na*gt_max)
         matched_gt_inds = matching_matrix.argmax(1).astype(ms.int32)  # (bs, gt_max, nl*5*na*gt_max) -> (bs, nl*5*na*gt_max)
         matched_bs_inds = mint.tile(
             mnp.arange(batch_size, dtype=ms.int32)[:, None], (1, matching_matrix.shape[2])
@@ -714,17 +705,17 @@ class YOLOv7AuxLoss(nn.Cell):
             _this_indices *= _this_mask[None, :]
             _this_anch *= _this_mask[:, None]
 
-            b, a, gj, gi = mint.split(_this_indices, split_size_or_sections=1, axis=0)
+            b, a, gj, gi = mint.split(_this_indices, split_size_or_sections=1, dim=0)
             b, a, gj, gi = b.view(-1), a.view(-1), gj.view(-1), gi.view(-1)
 
             fg_pred = pi[b, a, gj, gi]
             p_obj += (fg_pred[:, 4:5].view(batch_size, 5 * na * n_gt_max, 1),)
             p_cls += (fg_pred[:, 5:].view(batch_size, 5 * na * n_gt_max, -1),)
 
-            grid = mint.stack((gi, gj), axis=1)
+            grid = mint.stack((gi, gj), dim=1)
             pxy = (mint.sigmoid(fg_pred[:, :2]) * 2.0 - 0.5 + grid) * self.stride[i]  # / 8.
             pwh = (mint.sigmoid(fg_pred[:, 2:4]) * 2) ** 2 * _this_anch * self.stride[i]  # / 8.
-            pxywh = mint.concat((pxy, pwh), axis=-1)
+            pxywh = mint.concat((pxy, pwh), dim=-1)
             pxyxy = xywh2xyxy(pxywh)
 
             b, a, gj, gi, pxyxy, _this_anch, _this_mask = (
@@ -744,15 +735,15 @@ class YOLOv7AuxLoss(nn.Cell):
             all_anch += (_this_anch,)
             all_tmasks += (_this_mask,)
 
-        pxyxys = mint.concat(pxyxys, axis=1)  # nl * (bs, 5*na*gt_max, 4) -> cat -> (bs, c, 4) # nt = bs * gt_max
-        p_obj = mint.concat(p_obj, axis=1)
-        p_cls = mint.concat(p_cls, axis=1)  # nl * (bs, 5*na*gt_max, 80) -> (bs, nl*5*na*gt_max, 80)
-        all_b = mint.concat(all_b, axis=1)  # nl * (bs, 5*na*gt_max) -> (bs, nl*5*na*gt_max)
-        all_a = mint.concat(all_a, axis=1)
-        all_gj = mint.concat(all_gj, axis=1)
-        all_gi = mint.concat(all_gi, axis=1)
-        all_anch = mint.concat(all_anch, axis=1)
-        all_tmasks = mint.concat(all_tmasks, axis=1)  # (bs, nl*5*na*gt_max)
+        pxyxys = mint.concat(pxyxys, dim=1)  # nl * (bs, 5*na*gt_max, 4) -> cat -> (bs, c, 4) # nt = bs * gt_max
+        p_obj = mint.concat(p_obj, dim=1)
+        p_cls = mint.concat(p_cls, dim=1)  # nl * (bs, 5*na*gt_max, 80) -> (bs, nl*5*na*gt_max, 80)
+        all_b = mint.concat(all_b, dim=1)  # nl * (bs, 5*na*gt_max) -> (bs, nl*5*na*gt_max)
+        all_a = mint.concat(all_a, dim=1)
+        all_gj = mint.concat(all_gj, dim=1)
+        all_gi = mint.concat(all_gi, dim=1)
+        all_anch = mint.concat(all_anch, dim=1)
+        all_tmasks = mint.concat(all_tmasks, dim=1)  # (bs, nl*5*na*gt_max)
 
         this_mask = all_tmasks[:, None, :] * this_mask[:, :, None]  # (bs, gt_max, nl*5*na*gt_max,)
 
@@ -761,19 +752,17 @@ class YOLOv7AuxLoss(nn.Cell):
         pair_wise_iou_loss = -mint.log(pair_wise_iou + EPS)
 
         # Top 20 iou sum for aux, default 10
-        v, _ = mint.top_k(pair_wise_iou, 20)  # (bs, gt_max, 20)
-        dynamic_ks = mint.cast(v.sum(-1).clip(1, 20), ms.int32)  # (bs, gt_max)
+        v, _ = mint.topk(pair_wise_iou, 20)  # (bs, gt_max, 20)
+        dynamic_ks = ops.cast(v.sum(-1).clip(1, 20), ms.int32)  # (bs, gt_max)
 
         # (bs, gt_max, 80)
         gt_cls_per_image = mint.nn.functional.one_hot(
-            indices=mint.cast(this_target[:, :, 1], ms.int32),
-            depth=self.nc,
-            on_value=mint.ones(1, p_cls.dtype),
-            off_value=mint.zeros(1, p_cls.dtype),
+            ops.cast(this_target[:, :, 1], ms.int32),
+            self.nc
         )
         # (bs, gt_max, nl*5*na*gt_max, 80)
         gt_cls_per_image = mint.tile(
-            mint.unsqueeze(mint.cast(gt_cls_per_image, p_cls.dtype), 2), (1, 1, pxyxys.shape[1], 1)
+            mint.unsqueeze(ops.cast(gt_cls_per_image, p_cls.dtype), 2), (1, 1, pxyxys.shape[1], 1)
         )
 
         cls_preds_ = mint.sqrt(mint.sigmoid(p_cls) * mint.sigmoid(p_obj))
@@ -785,8 +774,6 @@ class YOLOv7AuxLoss(nn.Cell):
         pair_wise_cls_loss = mint.nn.functional.binary_cross_entropy_with_logits(
             mint.log(y / (1 - y) + EPS),
             gt_cls_per_image,
-            mint.ones(1, cls_preds_.dtype),
-            mint.ones(1, cls_preds_.dtype),
             reduction="none",
         ).sum(
             -1
@@ -794,27 +781,27 @@ class YOLOv7AuxLoss(nn.Cell):
 
         cost = pair_wise_cls_loss + 3.0 * pair_wise_iou_loss
         cost = cost * this_mask
-        cost += CLIP_VALUE * (1.0 - mint.cast(this_mask, cost.dtype))
+        cost += CLIP_VALUE * (1.0 - ops.cast(this_mask, cost.dtype))
 
-        sort_cost, sort_idx = mint.top_k(-cost, 20, sorted=True)  # (bs, gt_max, 20)
+        sort_cost, sort_idx = mint.topk(-cost, 20, sorted=True)  # (bs, gt_max, 20)
         sort_cost = -sort_cost
         pos_idx = mint.stack((mnp.arange(batch_size * n_gt_max, dtype=ms.int32), dynamic_ks.view(-1) - 1), -1)
         pos_v = ops.gather_nd(sort_cost.view(batch_size * n_gt_max, 20), pos_idx).view(batch_size, n_gt_max)
-        matching_matrix = mint.cast(cost <= pos_v[:, :, None], ms.int32) * this_mask
+        matching_matrix = ops.cast(cost <= pos_v[:, :, None], ms.int32) * this_mask
 
         # delete reduplicate match label, one anchor only match one gt
         cost_argmin = mnp.argmin(cost, axis=1)  # (bs, nl*5*na*gt_max)
         anchor_matching_gt_mask = mint.nn.functional.one_hot(
-            cost_argmin, n_gt_max, mint.ones(1, ms.float16), mint.zeros(1, ms.float16), axis=-1
+            cost_argmin, n_gt_max
         ).transpose(
             0, 2, 1
         )  # (bs, gt_max, nl*5*na*gt_max)
-        matching_matrix = matching_matrix * mint.cast(anchor_matching_gt_mask, matching_matrix.dtype)
+        matching_matrix = matching_matrix * ops.cast(anchor_matching_gt_mask, matching_matrix.dtype)
 
         fg_mask_inboxes = (
             matching_matrix.astype(ms.float16).sum(1) > 0.0
         )  # (bs, gt_max, nl*5*na*gt_max) -> (bs, nl*5*na*gt_max)
-        all_tmasks = all_tmasks * mint.cast(fg_mask_inboxes, ms.int32)  # (bs, nl*5*na*gt_max)
+        all_tmasks = all_tmasks * ops.cast(fg_mask_inboxes, ms.int32)  # (bs, nl*5*na*gt_max)
         matched_gt_inds = matching_matrix.argmax(1).astype(ms.int32)  # (bs, gt_max, nl*5*na*gt_max) -> (bs, nl*5*na*gt_max)
         matched_bs_inds = mint.tile(
             mnp.arange(batch_size, dtype=ms.int32)[:, None], (1, matching_matrix.shape[2])
@@ -845,12 +832,12 @@ class YOLOv7AuxLoss(nn.Cell):
         mask_t = targets[:, 1] >= 0  # (bs*gt_max,)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         indices, anch, tmasks = (), (), ()
-        gain = mint.ones(7, ms.int32)  # normalized to gridspace gain
+        gain = mint.ones(7, dtype=ms.int32)  # normalized to gridspace gain
         ai = mint.tile(mnp.arange(na, dtype=targets.dtype).view(na, 1), (1, nt))  # shape: (na, nt)
         targets = mint.concat((mint.tile(targets, (na, 1, 1)), ai[:, :, None]), 2)  # append anchor indices # (na, nt, 7)
 
         g = 0.5  # bias
-        off = mint.cast(self._off, targets.dtype) * g  # offsets
+        off = ops.cast(self._off, targets.dtype) * g  # offsets
 
         for i in range(self.nl):
             anchors, shape = self.anchors[i], p[i].shape
@@ -891,11 +878,11 @@ class YOLOv7AuxLoss(nn.Cell):
             k_m = mint.logical_or(k, m).astype(ms.int32)
             center = mint.ones_like(j_l)
             j = mint.stack((center, j_l, k_m))
-            mask_m_t = (mint.cast(j, ms.int32) * mint.cast(mask_m_t[None, :], ms.int32)).view(-1)
+            mask_m_t = (ops.cast(j, ms.int32) * ops.cast(mask_m_t[None, :], ms.int32)).view(-1)
             t = mint.tile(t, (3, 1, 1))  # shape(5, *, 7)
             t = t.view(-1, 7)
             offsets = mint.zeros_like(gxy)[None, :, :] + off[:, None, :]  # (1,*,2) + (5,1,2) -> (5,na*nt,2)
-            offsets_new = mint.zeros((3,) + offsets.shape[1:], offsets.dtype)
+            offsets_new = mint.zeros((3,) + offsets.shape[1:], dtype=offsets.dtype)
             # offsets_new[0, :, :] = offsets[0, :, :]
             offsets_new[1, :, :] = mint.where(tag1.astype(ms.bool_), offsets[1, ...], offsets[3, ...])
             offsets_new[2, :, :] = mint.where(tag2.astype(ms.bool_), offsets[2, ...], offsets[4, ...])
@@ -904,14 +891,14 @@ class YOLOv7AuxLoss(nn.Cell):
 
             # Define
             b, c, gxy, gwh, a = (
-                mint.cast(t[:, 0], ms.int32),
-                mint.cast(t[:, 1], ms.int32),
+                ops.cast(t[:, 0], ms.int32),
+                ops.cast(t[:, 1], ms.int32),
                 t[:, 2:4],
                 t[:, 4:6],
-                mint.cast(t[:, 6], ms.int32),
+                ops.cast(t[:, 6], ms.int32),
             )  # (image, class), grid xy, grid wh, anchors # b: (5*na*nt,), gxy: (5*na*nt, 2)
             # gij = gxy - offsets
-            gij = mint.cast(gxy - offsets, ms.int32)
+            gij = ops.cast(gxy - offsets, ms.int32)
             gi, gj = gij[:, 0], gij[:, 1]  # grid indices
             gi = gi.clip(0, shape[3] - 1)
             gj = gj.clip(0, shape[2] - 1)
@@ -929,12 +916,12 @@ class YOLOv7AuxLoss(nn.Cell):
         mask_t = targets[:, 1] >= 0  # (bs*gt_max,)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         indices, anch, tmasks = (), (), ()
-        gain = mint.ones(7, ms.int32)  # normalized to gridspace gain
+        gain = mint.ones(7, dtype=ms.int32)  # normalized to gridspace gain
         ai = mint.tile(mnp.arange(na, dtype=targets.dtype).view(na, 1), (1, nt))  # shape: (na, nt)
         targets = mint.concat((mint.tile(targets, (na, 1, 1)), ai[:, :, None]), 2)  # append anchor indices # (na, nt, 7)
 
         g = 1.0  # bias
-        off = mint.cast(self._off, targets.dtype) * g  # offsets
+        off = ops.cast(self._off, targets.dtype) * g  # offsets
 
         for i in range(self.nl):
             anchors, shape = self.anchors[i], p[i].shape
@@ -962,20 +949,20 @@ class YOLOv7AuxLoss(nn.Cell):
             j = mint.stack((mint.ones_like(j), j, k, l, m))  # shape: (5, *)
             t = mint.tile(t, (5, 1, 1))  # shape(5, *, 7)
             t = t.view(-1, 7)
-            mask_m_t = (mint.cast(j, ms.int32) * mint.cast(mask_m_t[None, :], ms.int32)).view(-1)
+            mask_m_t = (ops.cast(j, ms.int32) * ops.cast(mask_m_t[None, :], ms.int32)).view(-1)
             offsets = mint.zeros_like(gxy)[None, :, :] + off[:, None, :]  # (1,*,2) + (5,1,2) -> (5,na*nt,2)
             offsets = offsets.view(-1, 2)  # (5*na*nt, 2)
 
             # Define
             b, c, gxy, gwh, a = (
-                mint.cast(t[:, 0], ms.int32),
-                mint.cast(t[:, 1], ms.int32),
+                ops.cast(t[:, 0], ms.int32),
+                ops.cast(t[:, 1], ms.int32),
                 t[:, 2:4],
                 t[:, 4:6],
-                mint.cast(t[:, 6], ms.int32),
+                ops.cast(t[:, 6], ms.int32),
             )  # (image, class), grid xy, grid wh, anchors # b: (5*na*nt,), gxy: (5*na*nt, 2)
             # gij = gxy - offsets
-            gij = mint.cast(gxy - offsets, ms.int32)
+            gij = ops.cast(gxy - offsets, ms.int32)
             gi, gj = gij[:, 0], gij[:, 1]  # grid indices
             gi = gi.clip(0, shape[3] - 1)
             gj = gj.clip(0, shape[2] - 1)

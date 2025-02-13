@@ -46,7 +46,7 @@ class YOLOv7Head(nn.Cell):
         )
 
         self.m = nn.CellList(
-            [mint.nn.Conv2d(x, self.no * self.na, 1, pad_mode="valid", has_bias=True) for x in ch]
+            [mint.nn.Conv2d(x, self.no * self.na, 1) for x in ch]
         )  # output conv
 
         self.ia = nn.CellList([ImplicitA(x) for x in ch])
@@ -86,7 +86,7 @@ class YOLOv7Head(nn.Cell):
     def _make_grid(nx=20, ny=20, dtype=ms.float32):
         # FIXME: Not supported on a specific model of machine
         xv, yv = meshgrid((mnp.arange(nx), mnp.arange(ny)))
-        return mint.cast(mint.stack((xv, yv), 2).view((1, 1, ny, nx, 2)), dtype)
+        return ops.cast(mint.stack((xv, yv), 2).view((1, 1, ny, nx, 2)), dtype)
 
     @staticmethod
     def _check_anchor_order(anchors, anchor_grid, stride):
@@ -137,10 +137,10 @@ class YOLOv7AuxHead(nn.Cell):
         )
 
         self.m = nn.CellList(
-            [mint.nn.Conv2d(x, self.no * self.na, 1, pad_mode="valid", has_bias=True) for x in ch[: self.nl]]
+            [mint.nn.Conv2d(x, self.no * self.na, 1) for x in ch[: self.nl]]
         )  # output conv
         self.m2 = nn.CellList(
-            [mint.nn.Conv2d(x, self.no * self.na, 1, pad_mode="valid", has_bias=True) for x in ch[self.nl :]]
+            [mint.nn.Conv2d(x, self.no * self.na, 1) for x in ch[self.nl :]]
         )  # output conv
 
         self.ia = nn.CellList([ImplicitA(x) for x in ch[: self.nl]])

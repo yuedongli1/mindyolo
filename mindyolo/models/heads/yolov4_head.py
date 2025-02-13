@@ -19,7 +19,7 @@ class YOLOv4Head(nn.Cell):
         self.na = len(anchors) // 3  # number of anchors
 
         self.m = nn.CellList(
-            [mint.nn.Conv2d(x, self.no * self.na, 1, pad_mode="valid", has_bias=True) for x in ch]
+            [mint.nn.Conv2d(x, self.no * self.na, 1) for x in ch]
         )  # output conv
 
         # prediction on the default anchor boxes
@@ -85,8 +85,8 @@ class DetectionBlock(nn.Cell):
 
         range_x = range(grid_size[1])
         range_y = range(grid_size[0])
-        grid_x = mint.cast(ops.tuple_to_array(range_x), ms.float32)
-        grid_y = mint.cast(ops.tuple_to_array(range_y), ms.float32)
+        grid_x = ops.cast(ops.tuple_to_array(range_x), ms.float32)
+        grid_y = ops.cast(ops.tuple_to_array(range_y), ms.float32)
         # Tensor of shape [grid_size[0], grid_size[1], 1, 1] representing the coordinate of x/y axis for each grid
         # [batch, gridx, gridy, 1, 1]
         grid_x = mint.tile(grid_x.view(1, 1, -1, 1, 1), (1, grid_size[0], 1, 1, 1))
@@ -101,7 +101,7 @@ class DetectionBlock(nn.Cell):
 
         # gridsize1 is x
         # gridsize0 is y
-        box_xy = (self.scale_x_y * mint.sigmoid(box_xy) - self.offset_x_y + grid) / mint.cast(
+        box_xy = (self.scale_x_y * mint.sigmoid(box_xy) - self.offset_x_y + grid) / ops.cast(
             ops.tuple_to_array((grid_size[1], grid_size[0])), ms.float32
         )
         # box_wh is w->h
