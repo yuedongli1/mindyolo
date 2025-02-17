@@ -85,7 +85,7 @@ class YOLOv10Head(nn.Cell):
         if self.training:  # Training path
             return (one2many, one2one)
         y = self._inference(one2one)
-        y = self.postprocess(mint.transpose(y, (0, 2, 1)), self.max_det, self.nc)
+        y = self.postprocess(mint.permute(y, (0, 2, 1)), self.max_det, self.nc)
         return (y, (one2many, one2one))
     
     def _inference(self, x):
@@ -148,7 +148,7 @@ class YOLOv10Head(nn.Cell):
         """
         batch_size, _, _ = preds.shape  # i.e. shape(16,8400,84)
         boxes, scores = preds.split([4, nc], axis=-1)
-        max_scores = mint.amax(scores, axis=-1)
+        max_scores = mint.amax(scores, dim=-1)
         max_scores, index = mint.topk(max_scores, max_det, dim=-1)
         index = mint.unsqueeze(index, -1)
         boxes = mint.gather(boxes, dim=1, index=mint.tile(index, (1, 1, boxes.shape[-1])))

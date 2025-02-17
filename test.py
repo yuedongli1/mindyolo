@@ -78,7 +78,7 @@ def set_default_test(args):
     if args.precision_mode is not None:
         ms.set_context(ascend_config={"precision_mode":args.precision_mode})
     if args.ms_mode == 0:
-        ms.set_context(jit_config={"jit_level": "O2"})
+        ms.set_context(jit_config={"jit_level": "O0"})
     if args.device_target == "Ascend":
         ms.set_context(device_id=int(os.getenv("DEVICE_ID", 0)))
     elif args.device_target == "GPU" and args.ms_enable_graph_kernel:
