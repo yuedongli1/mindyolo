@@ -176,7 +176,6 @@ class AConv(nn.Cell):
 
     def construct(self, x):
         x = mint.nn.functional.avg_pool2d(x, 2, 1, 0, False, True)
-        x = self.avg_pool2d(x)
         return self.cv1(x)
 
 

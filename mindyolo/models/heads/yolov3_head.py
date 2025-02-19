@@ -3,7 +3,7 @@ import numpy as np
 
 import mindspore as ms
 import mindspore.numpy as mnp
-from mindspore import Parameter, Tensor, mint, nn
+from mindspore import Parameter, Tensor, mint, nn, ops
 
 from mindyolo.utils import logger
 from ..layers.utils import meshgrid

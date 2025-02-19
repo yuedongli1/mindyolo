@@ -247,7 +247,7 @@ class Iou(nn.Cell):
 
         intersect_mins = mint.maximum(box1_mins, box2_mins)
         intersect_maxs = mint.minimum(box1_maxs, box2_maxs)
-        intersect_wh = self.max(intersect_maxs - intersect_mins, ops.scalar_to_tensor(0.0))
+        intersect_wh = mint.max(intersect_maxs - intersect_mins, ops.scalar_to_tensor(0.0))
         # P.squeeze: for effiecient slice
         intersect_area = mint.squeeze(intersect_wh[:, :, :, :, :, 0:1], -1) * mint.squeeze(
             intersect_wh[:, :, :, :, :, 1:2], -1
