@@ -186,7 +186,7 @@ class YOLOXLoss(nn.Cell):
         )
         # (bs, num_gt_max, num_total_anchor, num_class) -> (bs, num_gt_max, num_total_anchor)
         pair_wise_cls_loss = ops.reduce_sum(
-            mint.nn.binary_cross_entropy(mint.sqrt(cls_preds_), gt_classes_expaned, None, reduction="none"), -1
+            mint.nn.functional.binary_cross_entropy(mint.sqrt(cls_preds_), gt_classes_expaned, None, reduction="none"), -1
         )
 
         pair_wise_cls_loss = pair_wise_cls_loss * pre_fg_mask
@@ -216,7 +216,7 @@ class YOLOXLoss(nn.Cell):
 
         # pick the one with the lower cost if a sample is positive for more than one gt
         cost_t = cost * pos_mask + (1.0 - pos_mask) * 2000.0
-        min_index = mint.argmin(cost_t, axis=1)
+        min_index = mint.argmin(cost_t, dim=1)
         ret_posk = mint.permute(mint.nn.functional.one_hot(min_index, gt_max), (0, 2, 1))
         pos_mask = pos_mask * ret_posk
         pos_mask = ops.stop_gradient(pos_mask)
