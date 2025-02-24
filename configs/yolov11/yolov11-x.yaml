@@ -4,7 +4,6 @@ __BASE__: [
   './yolov11-base.yaml'
 ]
 
-ms_amp_level: O3
 per_batch_size: 43
 overflow_still_update: False
 network:
