@@ -585,6 +585,9 @@ class COCODataset:
         bboxes = sample['bboxes']
         segments = sample['segments']
 
+        if len(segments) == 0 or probability == 0:
+            return sample
+
         im_new = np.zeros(img.shape, np.uint8)
         h, w, _ = img.shape  # height, width, channels
         bboxes2 = bboxes.copy()
