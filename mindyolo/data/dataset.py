@@ -586,7 +586,10 @@ class COCODataset:
         segments = sample['segments']
 
         h, w, _ = img.shape  # height, width, channels
-        bboxes2 = w - bboxes[2], bboxes[1], w - bboxes[0], bboxes[3]
+        bboxes2 = bboxes.copy()
+        bboxes2[:, 0] = w - bboxes[:, 2]
+        bboxes2[:, 2] = w - bboxes[:, 0]
+
         ioa = bbox_ioa(bboxes, bboxes2)  # intersection over area, (N, M)
         indexes = np.nonzero((ioa < 0.30).all(1))[0]  # (N, ) allow 30% obscuration of existing labels
 
@@ -787,7 +790,7 @@ class COCODataset:
             xmax = min(w, xmin + mask_w)
             ymax = min(h, ymin + mask_h)
 
-            box = np.array([xmin, ymin, xmax, ymax], dtype=np.float32)
+            box = np.array([[xmin, ymin, xmax, ymax]], dtype=np.float32)
             if len(bboxes):
                 ioa = bbox_ioa(box, bboxes)  # intersection over area
             else:
