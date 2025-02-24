@@ -587,27 +587,35 @@ class COCODataset:
         bboxes = sample['bboxes']
         segments = sample['segments']
 
-        n = len(segments)
-        if probability and n:
-            h, w, _ = img.shape  # height, width, channels
-            im_new = np.zeros(img.shape, np.uint8)
-            for j in random.sample(range(n), k=round(probability * n)):
-                c, l, s = cls[j], bboxes[j], segments[j]
-                box = w - l[2], l[1], w - l[0], l[3]
-                ioa = bbox_ioa(box, bboxes)  # intersection over area
-                if (ioa < 0.30).all():  # allow 30% obscuration of existing labels
-                    cls = np.concatenate((cls, [c]), 0)
-                    bboxes = np.concatenate((bboxes, [box]), 0)
-                    if isinstance(segments, list):
-                        segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
-                    else:
-                        segments = np.concatenate((segments, [np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1)]), 0)
-                    cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
+        if len(segments) == 0 or probability == 0:
+            return sample
 
-            result = cv2.bitwise_and(src1=img, src2=im_new)
-            result = cv2.flip(result, 1)  # augment segments (flip left-right)
-            i = result > 0  # pixels to replace
-            img[i] = result[i]  # cv2.imwrite('debug.jpg', img)  # debug
+        im_new = np.zeros(img.shape, np.uint8)
+        h, w, _ = img.shape  # height, width, channels
+        bboxes2 = bboxes.copy()
+        bboxes2[:, 0] = w - bboxes[:, 2]
+        bboxes2[:, 2] = w - bboxes[:, 0]
+
+        ioa = bbox_ioa(bboxes2, bboxes)  # intersection over area, (N, M)
+        indexes = np.nonzero((ioa < 0.30).all(1))[0]  # (N, ) allow 30% obscuration of existing labels
+
+        n = len(indexes)
+        sorted_idx = np.argsort(ioa.max(1)[indexes])
+        indexes = indexes[sorted_idx]
+        for j in indexes[: round(probability * n)]:
+            c, s = cls[j], segments[j]
+            cls = np.concatenate((cls, [c]), 0)
+            bboxes = np.concatenate((bboxes, [bboxes2[j]]), 0)
+            if isinstance(segments, list):
+                segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
+            else:
+                segments = np.concatenate((segments, [np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1)]), 0)
+            cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
+
+        result = cv2.bitwise_and(src1=img, src2=im_new)
+        result = cv2.flip(result, 1)  # augment segments (flip left-right)
+        i = result > 0  # pixels to replace
+        img[i] = result[i]
 
         sample['img'] = img
         sample['cls'] = cls
@@ -788,7 +796,7 @@ class COCODataset:
             xmax = min(w, xmin + mask_w)
             ymax = min(h, ymin + mask_h)
 
-            box = np.array([xmin, ymin, xmax, ymax], dtype=np.float32)
+            box = np.array([[xmin, ymin, xmax, ymax]], dtype=np.float32)
             if len(bboxes):
                 ioa = bbox_ioa(box, bboxes)  # intersection over area
             else:
