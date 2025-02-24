@@ -598,8 +598,9 @@ class COCODataset:
         indexes = indexes[sorted_idx]
         for j in indexes[: round(probability * n)]:
             im_new = np.zeros(img.shape, np.uint8)
+            c, s = cls[j], segments[j]
             cls = np.concatenate((cls, [c]), 0)
-            bboxes = np.concatenate((bboxes, [box]), 0)
+            bboxes = np.concatenate((bboxes, [bboxes2[j]]), 0)
             if isinstance(segments, list):
                 segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
             else:
