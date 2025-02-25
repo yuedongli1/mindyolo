@@ -183,7 +183,7 @@ def parse_model(d, ch, nc, sync_bn=False):  # model_dict, input_channels(3)
                 ADown
             ):
                 kwargs["sync_bn"] = sync_bn
-            if m in (DownC, SPPCSPC, C3, C2f, DWC3, C2fCIB, C3k2):
+            if m in (DownC, SPPCSPC, C3, C2f, DWC3, C2fCIB, C3k2, C2PSA):
                 args.insert(2, n)  # number of repeats
                 n = 1
             if m is C3k2:  # M/L/X sizes
