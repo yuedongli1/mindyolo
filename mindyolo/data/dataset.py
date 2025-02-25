@@ -594,7 +594,7 @@ class COCODataset:
         bboxes2[:, 0] = w - bboxes[:, 2]
         bboxes2[:, 2] = w - bboxes[:, 0]
 
-        ioa = bbox_ioa(bboxes, bboxes2)  # intersection over area, (N, M)
+        ioa = bbox_ioa(bboxes2, bboxes)  # intersection over area, (N, M)
         indexes = np.nonzero((ioa < 0.30).all(1))[0]  # (N, ) allow 30% obscuration of existing labels
 
         n = len(indexes)
@@ -608,7 +608,7 @@ class COCODataset:
                 segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
             else:
                 segments = np.concatenate((segments, [np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1)]), 0)
-            cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
+            cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (1, 1, 1), cv2.FILLED)
 
         result = cv2.flip(img, 1)  # augment segments (flip left-right)
         i = im_new.astype(bool)  # pixels to replace
