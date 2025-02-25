@@ -101,7 +101,7 @@ def parse_model(d, ch, nc, sync_bn=False):  # model_dict, input_channels(3)
         logger.info("network structure are as follows")
         logger.info("%3s%18s%3s%10s  %-60s%-40s" % ("", "from", "n", "params", "module", "arguments"))
     anchors, reg_max, max_channels = d.get("anchors", None), d.get("reg_max", None), d.get("max_channels", None)
-    stride, gd, gw = d.stride, d.depth_multiple, d.width_multiple
+    stride, gd, gw, scale = d.stride, d.depth_multiple, d.width_multiple, d.get("scale", None)
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     layers_param = []
@@ -186,6 +186,9 @@ def parse_model(d, ch, nc, sync_bn=False):  # model_dict, input_channels(3)
             if m in (DownC, SPPCSPC, C3, C2f, DWC3, C2fCIB, C3k2):
                 args.insert(2, n)  # number of repeats
                 n = 1
+            if m is C3k2:  # M/L/X sizes
+                if scale in "mlx":
+                    args[3] = True
         elif m in (nn.BatchNorm2d, nn.SyncBatchNorm):
             args = [ch[f]]
         elif m in (Concat,):
