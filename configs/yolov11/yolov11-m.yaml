@@ -5,7 +5,7 @@ __BASE__: [
 ]
 
 ms_amp_level: O3
-per_batch_size: 120
+per_batch_size: 108
 overflow_still_update: False
 network:
   depth_multiple: 0.50  # scales module repeats
