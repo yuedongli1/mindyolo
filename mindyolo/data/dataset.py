@@ -608,10 +608,11 @@ class COCODataset:
                 segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
             else:
                 segments = np.concatenate((segments, [np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1)]), 0)
-            cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (1, 1, 1), cv2.FILLED)
+            cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
 
-        result = cv2.flip(img, 1)  # augment segments (flip left-right)
-        i = im_new.astype(bool)  # pixels to replace
+        result = cv2.bitwise_and(src1=img, src2=im_new)
+        result = cv2.flip(result, 1)  # augment segments (flip left-right)
+        i = result > 0  # pixels to replace
         img[i] = result[i]
 
         sample['img'] = img
