@@ -11,6 +11,28 @@ sync_bn: False
 anchor_base: False
 opencv_threads_num: 0  # opencv: disable threading optimizations
 
+optimizer:
+  optimizer: momentum
+  lr_init: 0.01  # initial learning rate (SGD=1E-2, Adam=1E-3)
+  momentum: 0.937  # SGD momentum/Adam beta1
+  nesterov: True  # update gradients with NAG(Nesterov Accelerated Gradient) algorithm
+  loss_scale: 1.0  # loss scale for optimizer
+  warmup_epochs: 3  # warmup epochs (fractions ok)
+  warmup_momentum: 0.8  # warmup initial momentum
+  warmup_bias_lr: 0.0  # warmup initial bias lr
+  min_warmup_step: 1000  # minimum warmup step
+  group_param: yolov8  # group param strategy
+  gp_weight_decay: 0.0005  # group param weight decay 5e-4
+  start_factor: 1.0
+  end_factor: 0.01
+
+loss:
+  name: YOLOv11Loss
+  box: 7.5  # box loss gain
+  cls: 0.5  # cls loss gain
+  dfl: 1.5  # dfl loss gain
+  reg_max: 16
+
 network:
   model_name: yolov11
   nc: 80  # number of classes
