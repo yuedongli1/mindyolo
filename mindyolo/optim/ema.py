@@ -32,7 +32,7 @@ class EMA(nn.Cell):
     def update(self):
         # Update EMA parameters
         def update_param(d, ema_v, weight):
-            if weight.dtype == ms.int32:
+            if weight.dtype == ms.int32 or weight.dtype == ms.int64:
                 return self.assign(ema_v, weight)
             else:
                 tep_v = ema_v * d
