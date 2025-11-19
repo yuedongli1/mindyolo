@@ -1,6 +1,7 @@
 import numpy as np
 
 from .scheduler import cosine_decay_lr, linear_lr
+from mindyolo.utils import logger
 
 __all__ = ["create_group_param"]
 
@@ -80,6 +81,10 @@ def group_param_yolov3(
 
     nbs = 64
     weight_decay *= total_batch_size * accumulate / nbs  # scale weight_decay
+    logger.info(
+        f"total batch size: {total_batch_size}, accumulate: {accumulate}, "
+        f"nbs: {nbs}, weight_decay scaled to {weight_decay}"
+    )
     group_params = [
         {"params": pg0, "lr": lr_pg0},
         {"params": pg1, "lr": lr_pg1, "weight_decay": weight_decay},
@@ -161,6 +166,10 @@ def group_param_yolov5(
 
     nbs = 64
     weight_decay *= total_batch_size * accumulate / nbs  # scale weight_decay
+    logger.info(
+        f"total batch size: {total_batch_size}, accumulate: {accumulate}, "
+        f"nbs: {nbs}, weight_decay scaled to {weight_decay}"
+    )
     group_params = [
         {"params": pg0, "lr": lr_pg0},
         {"params": pg1, "lr": lr_pg1, "weight_decay": weight_decay},
@@ -209,6 +218,10 @@ def group_param_yolov7(
 
     nbs = 64
     weight_decay *= total_batch_size * accumulate / nbs  # scale weight_decay
+    logger.info(
+        f"total batch size: {total_batch_size}, accumulate: {accumulate}, "
+        f"nbs: {nbs}, weight_decay scaled to {weight_decay}"
+    )
     group_params = [
         {"params": pg0, "lr": lr_pg0},
         {"params": pg1, "lr": lr_pg1, "weight_decay": weight_decay},
@@ -252,6 +265,10 @@ def group_param_yolov8(
 
     nbs = 64
     weight_decay *= total_batch_size * accumulate / nbs  # scale weight_decay
+    logger.info(
+        f"total batch size: {total_batch_size}, accumulate: {accumulate}, "
+        f"nbs: {nbs}, weight_decay scaled to {weight_decay}"
+    )
     group_params = [
         {"params": pg0, "lr": lr_pg0},
         {"params": pg1, "lr": lr_pg1, "weight_decay": weight_decay},
